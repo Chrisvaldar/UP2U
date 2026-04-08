@@ -1,2 +1,2 @@
-# up2u
+# UP2U
 An app that figures out where to eat as a group, "party game" style
