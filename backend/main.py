@@ -18,6 +18,10 @@ class CreateSessionRequest(BaseModel):
     host_name: str
 
 
+class JoinSessionRequest(BaseModel):
+    participant_name: str
+
+
 @app.get("/")
 def root():
     return {"message": "UP2U backend is alive"}
@@ -49,3 +53,20 @@ def get_session(code: str):
         return {"error": "session not found"}
 
     return json.loads(data)
+
+
+@app.post("/join-session/{code}")
+def join_session(code: str, request: JoinSessionRequest):
+    key = f"session:{code}"
+    ttl = r.ttl(key)
+    data = r.get(key)
+
+    if data is None:
+        return {"error": "session not found"}
+
+    dict_data = json.loads(data)
+    dict_data["participants"].append(request.participant_name)
+
+    r.setex(key, 3600, json.dumps(dict_data))
+
+    return {"session_code": code}
