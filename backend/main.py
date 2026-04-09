@@ -22,6 +22,11 @@ class JoinSessionRequest(BaseModel):
     participant_name: str
 
 
+class StartSessionRequest(BaseModel):
+    host_name: str
+    location: str
+
+
 @app.get("/")
 def root():
     return {"message": "UP2U backend is alive"}
@@ -67,6 +72,28 @@ def join_session(code: str, request: JoinSessionRequest):
     dict_data = json.loads(data)
     dict_data["participants"].append(request.participant_name)
 
-    r.setex(key, 3600, json.dumps(dict_data))
+    r.setex(key, ttl, json.dumps(dict_data))
 
     return {"session_code": code}
+
+
+@app.post("/start-session/{code}")
+def start_session(code: str, request: StartSessionRequest):
+    key = f"session:{code}"
+    ttl = r.ttl(key)
+    data = r.get(key)
+
+    if data is None:
+        return {"error": "session not found"}
+
+    dict_data = json.loads(data)
+
+    if request.host_name != dict_data["host"]:
+        return "Only the host can start the session"
+
+    dict_data["status"] = "active"
+    dict_data["location"] = request.location
+
+    r.setex(key, ttl, json.dumps(dict_data))
+
+    return dict_data
