@@ -27,6 +27,11 @@ class StartSessionRequest(BaseModel):
     location: str
 
 
+class SubmitAnswersRequest(BaseModel):
+    participant_name: str
+    answer: str
+
+
 @app.get("/")
 def root():
     return {"message": "UP2U backend is alive"}
@@ -93,6 +98,32 @@ def start_session(code: str, request: StartSessionRequest):
 
     dict_data["status"] = "active"
     dict_data["location"] = request.location
+
+    r.setex(key, ttl, json.dumps(dict_data))
+
+    return dict_data
+
+
+@app.post("/submit-answers/{code}")
+def submit_answers(code: str, request: SubmitAnswersRequest):
+    key = f"session:{code}"
+    ttl = r.ttl(key)
+    data = r.get(key)
+
+    if data is None:
+        return {"error": "session not found"}
+
+    dict_data = json.loads(data)
+
+    if request.participant_name not in dict_data["participants"]:
+        return "Participant name not found in session"
+
+    dict_data["answers"][request.participant_name] = request.answer
+
+    if len(dict_data["answers"]) == len(dict_data["participants"]):
+        # everyone has submitted
+        dict_data["status"] = "revealing"
+        # trigger AI + Places API call
 
     r.setex(key, ttl, json.dumps(dict_data))
 
