@@ -1,13 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from dotenv import load_dotenv
 import os
 import redis
 import random, string
 import json
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 
@@ -30,6 +39,32 @@ class StartSessionRequest(BaseModel):
 class SubmitAnswersRequest(BaseModel):
     participant_name: str
     answer: str
+
+
+class ConnectionManager:
+    def __init__(self):
+        # stores connections grouped by session code
+        # {"ABC123": [websocket1, websocket2, websocket3]}
+        self.sessions = {}
+
+    async def connect(self, session_code: str, websocket: WebSocket):
+        # add this websocket to the session's list
+        await websocket.accept()
+        if session_code not in self.sessions:
+            self.sessions[session_code] = []
+        self.sessions[session_code].append(websocket)
+
+    async def disconnect(self, session_code: str, websocket: WebSocket):
+        # remove this websocket from the session's list
+        self.sessions[session_code].remove(websocket)
+
+    async def broadcast(self, session_code: str, message: str):
+        # send message to every websocket in the session
+        for ws in self.sessions[session_code]:
+            await ws.send_text(message)
+
+
+manager = ConnectionManager()
 
 
 @app.get("/")
@@ -128,3 +163,17 @@ def submit_answers(code: str, request: SubmitAnswersRequest):
     r.setex(key, ttl, json.dumps(dict_data))
 
     return dict_data
+
+
+@app.websocket("/ws/{session_code}/{participant_name}")
+async def websocket_endpoint(
+    websocket: WebSocket, session_code: str, participant_name: str
+):
+    await manager.connect(session_code, websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # for now just broadcast whatever message we receive to everyone
+            await manager.broadcast(session_code, f"{participant_name}: {data}")
+    except Exception:
+        await manager.disconnect(session_code, websocket)
