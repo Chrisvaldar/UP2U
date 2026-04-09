@@ -7,6 +7,7 @@ import json
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
+import math
 
 load_dotenv()
 
@@ -238,6 +239,18 @@ GENERIC_TYPES = {
 }
 
 
+def haversine(lat1, lng1, lat2, lng2):
+    R = 6371000  # Earth radius in metres
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * R * math.asin(math.sqrt(a))
+
+
 def clean_restaurants(raw_places: list, user_lat: float, user_lng: float):
     cleaned = []
     for place in raw_places:
@@ -260,10 +273,22 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float):
                 "review_count": place.get("userRatingCount", 0),
                 "price_level": place.get("priceLevel", "Unknown"),
                 "address": place.get("formattedAddress", ""),
-                "cuisines": [t for t in types if t not in GENERIC_TYPES],
+                "cuisines": [
+                    t.replace("_restaurant", "").replace("_", " ")
+                    for t in types
+                    if t not in GENERIC_TYPES
+                ],
                 "summary": place.get("editorialSummary", {}).get("text", ""),
                 "open_now": place.get("regularOpeningHours", {}).get("openNow", None),
                 "maps_link": f"https://www.google.com/maps/place/?q=place_id:{place.get('id', '')}",
+                "distance_meters": int(
+                    haversine(
+                        user_lat,
+                        user_lng,
+                        place["location"]["latitude"],
+                        place["location"]["longitude"],
+                    )
+                ),
             }
         )
     return cleaned
@@ -275,7 +300,7 @@ def get_nearby_restaurants(latitude: float, longitude: float):
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.types,places.regularOpeningHours,places.editorialSummary,places.id",
+        "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.types,places.regularOpeningHours,places.editorialSummary,places.id,places.location",
     }
 
     body = {
@@ -292,3 +317,8 @@ def get_nearby_restaurants(latitude: float, longitude: float):
     response = requests.post(url, headers=headers, json=body)
     raw = response.json().get("places", [])
     return clean_restaurants(raw, latitude, longitude)
+
+
+@app.get("/test-places")
+def test_places():
+    return get_nearby_restaurants(-37.8136, 144.9631)
