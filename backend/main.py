@@ -42,7 +42,7 @@ class StartSessionRequest(BaseModel):
 
 class SubmitAnswersRequest(BaseModel):
     participant_name: str
-    answer: str
+    answers: dict
 
 
 class ConnectionManager:
@@ -63,6 +63,8 @@ class ConnectionManager:
         self.sessions[session_code].remove(websocket)
 
     async def broadcast(self, session_code: str, event: dict):
+        if session_code not in self.sessions:
+            return  # nobody connected yet, skip
         # send message to every websocket in the session
         for ws in self.sessions[session_code]:
             await ws.send_text(json.dumps(event))
@@ -172,12 +174,7 @@ async def submit_answers(code: str, request: SubmitAnswersRequest):
     if request.participant_name not in dict_data["participants"]:
         return "Participant name not found in session"
 
-    dict_data["answers"][request.participant_name] = request.answer
-
-    if len(dict_data["answers"]) == len(dict_data["participants"]):
-        # everyone has submitted
-        dict_data["status"] = "revealing"
-        # trigger AI + Places API call
+    dict_data["answers"][request.participant_name] = request.answers
 
     r.setex(key, ttl, json.dumps(dict_data))
 
@@ -193,9 +190,14 @@ async def submit_answers(code: str, request: SubmitAnswersRequest):
         },
     )
 
-    # and if everyone submitted:
     if len(dict_data["answers"]) == len(dict_data["participants"]):
-        await manager.broadcast(code, {"type": "all_submitted", "data": {}})
+        dict_data["status"] = "revealing"
+        loc = [-37.8136, 144.9631]
+        restaurants = get_nearby_restaurants(loc[0], loc[1])
+        users = [{"name": name, **ans} for name, ans in dict_data["answers"].items()]
+        reveal = generate_reveal(users, restaurants)
+
+        await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     return dict_data
 
