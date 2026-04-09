@@ -58,10 +58,10 @@ class ConnectionManager:
         # remove this websocket from the session's list
         self.sessions[session_code].remove(websocket)
 
-    async def broadcast(self, session_code: str, message: str):
+    async def broadcast(self, session_code: str, event: dict):
         # send message to every websocket in the session
         for ws in self.sessions[session_code]:
-            await ws.send_text(message)
+            await ws.send_text(json.dumps(event))
 
 
 manager = ConnectionManager()
@@ -101,7 +101,7 @@ def get_session(code: str):
 
 
 @app.post("/join-session/{code}")
-def join_session(code: str, request: JoinSessionRequest):
+async def join_session(code: str, request: JoinSessionRequest):
     key = f"session:{code}"
     ttl = r.ttl(key)
     data = r.get(key)
@@ -114,11 +114,22 @@ def join_session(code: str, request: JoinSessionRequest):
 
     r.setex(key, ttl, json.dumps(dict_data))
 
+    await manager.broadcast(
+        code,
+        {
+            "type": "participant_joined",
+            "data": {
+                "name": request.participant_name,
+                "participants": dict_data["participants"],
+            },
+        },
+    )
+
     return {"session_code": code}
 
 
 @app.post("/start-session/{code}")
-def start_session(code: str, request: StartSessionRequest):
+async def start_session(code: str, request: StartSessionRequest):
     key = f"session:{code}"
     ttl = r.ttl(key)
     data = r.get(key)
@@ -136,11 +147,15 @@ def start_session(code: str, request: StartSessionRequest):
 
     r.setex(key, ttl, json.dumps(dict_data))
 
+    await manager.broadcast(
+        code, {"type": "session_started", "data": {"location": request.location}}
+    )
+
     return dict_data
 
 
 @app.post("/submit-answers/{code}")
-def submit_answers(code: str, request: SubmitAnswersRequest):
+async def submit_answers(code: str, request: SubmitAnswersRequest):
     key = f"session:{code}"
     ttl = r.ttl(key)
     data = r.get(key)
@@ -161,6 +176,22 @@ def submit_answers(code: str, request: SubmitAnswersRequest):
         # trigger AI + Places API call
 
     r.setex(key, ttl, json.dumps(dict_data))
+
+    await manager.broadcast(
+        code,
+        {
+            "type": "answer_submitted",
+            "data": {
+                "name": request.participant_name,
+                "submitted": list(dict_data["answers"].keys()),
+                "total": len(dict_data["participants"]),
+            },
+        },
+    )
+
+    # and if everyone submitted:
+    if len(dict_data["answers"]) == len(dict_data["participants"]):
+        await manager.broadcast(code, {"type": "all_submitted", "data": {}})
 
     return dict_data
 
