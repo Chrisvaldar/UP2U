@@ -5,6 +5,8 @@ import redis
 import random, string
 import json
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import requests
 
 load_dotenv()
 
@@ -20,7 +22,7 @@ app.add_middleware(
 
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 
-from pydantic import BaseModel
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 
 
 class CreateSessionRequest(BaseModel):
@@ -208,3 +210,85 @@ async def websocket_endpoint(
             await manager.broadcast(session_code, f"{participant_name}: {data}")
     except Exception:
         await manager.disconnect(session_code, websocket)
+
+
+INVALID_TYPES = {
+    "lodging",
+    "hotel",
+    "gym",
+    "supermarket",
+    "grocery_store",
+    "gas_station",
+    "pharmacy",
+    "hospital",
+    "school",
+    "bank",
+    "tourist_attraction",
+    "historical_landmark",
+    "shopping_mall",
+}
+
+GENERIC_TYPES = {
+    "restaurant",
+    "food",
+    "point_of_interest",
+    "establishment",
+    "store",
+    "food_store",
+}
+
+
+def clean_restaurants(raw_places: list, user_lat: float, user_lng: float):
+    cleaned = []
+    for place in raw_places:
+        types = place.get("types", [])
+
+        # skip if it's clearly not a restaurant
+        if any(t in INVALID_TYPES for t in types):
+            continue
+
+        # must have at least "restaurant" or "food" somewhere
+        if not any(
+            t in ["restaurant", "food", "cafe", "bar", "meal_takeaway"] for t in types
+        ):
+            continue
+
+        cleaned.append(
+            {
+                "name": place.get("displayName", {}).get("text", "Unknown"),
+                "rating": place.get("rating", 0),
+                "review_count": place.get("userRatingCount", 0),
+                "price_level": place.get("priceLevel", "Unknown"),
+                "address": place.get("formattedAddress", ""),
+                "cuisines": [t for t in types if t not in GENERIC_TYPES],
+                "summary": place.get("editorialSummary", {}).get("text", ""),
+                "open_now": place.get("regularOpeningHours", {}).get("openNow", None),
+                "maps_link": f"https://www.google.com/maps/place/?q=place_id:{place.get('id', '')}",
+            }
+        )
+    return cleaned
+
+
+def get_nearby_restaurants(latitude: float, longitude: float):
+    url = "https://places.googleapis.com/v1/places:searchNearby"
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.types,places.regularOpeningHours,places.editorialSummary,places.id",
+    }
+
+    body = {
+        "includedTypes": ["restaurant"],
+        "maxResultCount": 20,
+        "locationRestriction": {
+            "circle": {
+                "center": {"latitude": latitude, "longitude": longitude},
+                "radius": 500.0,
+            }
+        },
+    }
+
+    response = requests.post(url, headers=headers, json=body)
+    raw = response.json().get("places", [])
+    return clean_restaurants(raw, latitude, longitude)
