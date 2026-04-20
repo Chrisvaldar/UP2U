@@ -18,7 +18,7 @@ UP2U solves group decision paralysis by making the process social, fast, and act
 
 1. **Host creates a session** and shares a 6-character code or link with the group
 2. **Everyone joins** on their phone — no app download, just a browser link
-3. **Each person fills out a short survey** — hunger level, vibe, cuisine rankings, dietary restrictions
+3. **Each person fills out a short survey, party game style (buttons, short forms, etc.)** — hunger level, vibe, cuisine rankings, dietary restrictions
 4. **The AI analyses the group** and generates a reveal with:
    - A personality roast for each person based on their food mood
    - What the group agrees on and where things get spicy
