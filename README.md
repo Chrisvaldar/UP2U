@@ -137,16 +137,6 @@ API explorer available at `http://localhost:8000/docs`
 
 ---
 
-## Environment Variables
-
-```
-GOOGLE_PLACES_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-REDIS_URL=redis://localhost:6379
-```
-
----
-
 ## Why This Project
 
-Built to solve a real problem — the endless "up to you" loop that plagues every friend group. The technical challenge was interesting: coordinating real-time state across multiple simultaneous users, integrating live restaurant data with AI-generated personalised output, and making the whole thing feel like a social experience rather than a utility.
+I was tired of being the one to decide where to eat and I wanted to make it a fun experience for everyone instead. The technical challenge was interesting: coordinating real-time state across multiple simultaneous users, integrating live restaurant data with AI-generated personalised output, and making the whole thing feel like a social experience rather than a utility.
