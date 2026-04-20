@@ -1,16 +1,16 @@
 # UP2U 🍜
 
-> "Where do you want to eat?" "Up to you." — Never again.
+> "Where do you want to eat?" "Up to you." Never again.
 
-UP2U is a real-time group dining decision app that turns the most annoying part of hanging out with friends into a party game. Everyone submits their food preferences, the AI reads the room, and the group gets a decisive restaurant recommendation — complete with personality roasts, group conflict analysis, and a dramatic reveal.
+UP2U is a real-time group dining decision app that turns the most annoying part of hanging out with friends into a party game. Everyone submits their food preferences, the AI reads the room, and the group gets a decisive restaurant recommendation, complete with personality roasts, group conflict analysis, and a dramatic reveal.
 
 ---
 
 ## The Problem
 
-Every group chat has that one person who says "up to you" when asked where to eat. Then everyone says "up to you." Then nobody decides. Then you end up at the same place you always go.
+Every group chat has that one person who says "up to you" when asked where to eat. Then everyone says "up to you." Then nobody decides. Then you end up at the same place you always go. And the worst part, it turns a fun hangout into a game of passing along the mental burden of finding a place to eat.
 
-UP2U solves group decision paralysis by making the process social, fast, and actually fun.
+UP2U solves group decision paralysis by making the process social, fast, and actually fun. I aim to make it an additional experience to the group hangout, not a hindrance.
 
 ---
 
