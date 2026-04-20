@@ -1,4 +1,4 @@
-# UP2U 🍜
+# UP2U
 
 > "Where do you want to eat?" "Up to you." Never again.
 
