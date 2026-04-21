@@ -210,8 +210,7 @@ async def websocket_endpoint(
     try:
         while True:
             data = await websocket.receive_text()
-            # for now just broadcast whatever message we receive to everyone
-            await manager.broadcast(session_code, f"{participant_name}: {data}")
+            await manager.broadcast(session_code, {"type": "message", "data": {"participant": participant_name, "message": data}})
     except Exception:
         await manager.disconnect(session_code, websocket)
 
@@ -345,9 +344,9 @@ def generate_reveal(users: list[dict], restaurants: list[dict]) -> dict:
     preferences_text = "\n".join(preferences_text)
 
     restaurants_text = []
-    for r in restaurants:
+    for rest in restaurants:
         restaurants_text.append(
-            f"{r['name']}: cuisines={r['cuisines']}, rating={r['rating']} ({r['review_count']} reviews), price_level={r['price_level']}, distance_meters={r['distance_meters']}, open_now={r['open_now']}, summary={r['summary']}, address={r['address']}, maps_link={r['maps_link']}"
+            f"{rest['name']}: cuisines={rest['cuisines']}, rating={rest['rating']} ({rest['review_count']} reviews), price_level={rest['price_level']}, distance_meters={rest['distance_meters']}, open_now={rest['open_now']}, summary={rest['summary']}, address={rest['address']}, maps_link={rest['maps_link']}"
         )
     restaurants_text = "\n".join(restaurants_text)
 
