@@ -1,3 +1,19 @@
+"""
+UP2U Backend — main.py
+======================
+FastAPI application for UP2U, a real-time group dining decision app.
+
+Flow:
+    1. Host creates a session → gets a 6-char code
+    2. Participants join via that code
+    3. Host starts the session
+    4. Everyone fills out the survey and submits answers
+    5. When all answers are in, the AI reveal is generated and broadcast
+
+Session state lives in Redis with a 1-hour TTL.
+Real-time events are pushed to clients over WebSockets.
+"""
+
 from fastapi import FastAPI, WebSocket
 from google import genai
 from dotenv import load_dotenv
@@ -14,6 +30,8 @@ load_dotenv()
 
 app = FastAPI()
 
+# Allow all origins during development. Tighten this in production
+# to only allow your frontend's domain.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,6 +43,15 @@ app.add_middleware(
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+
+# ---------------------------------------------------------------------------
+# Request models
+# ---------------------------------------------------------------------------
+# Pydantic models define and validate the shape of incoming request bodies.
+# FastAPI uses these automatically — if the request doesn't match, it returns
+# a 422 error before your code even runs.
 
 
 class CreateSessionRequest(BaseModel):
@@ -45,32 +72,61 @@ class SubmitAnswersRequest(BaseModel):
     answers: dict
 
 
+# ---------------------------------------------------------------------------
+# WebSocket connection manager
+# ---------------------------------------------------------------------------
+
+
 class ConnectionManager:
+    """
+    Manages active WebSocket connections grouped by session code.
+
+    Each session has a list of connected WebSockets. When an event happens
+    (e.g. someone joins), we broadcast it to everyone in that session.
+
+    Note: this is in-memory, so it won't work across multiple server
+    instances. A production setup would use Redis pub/sub instead.
+    """
+
     def __init__(self):
-        # stores connections grouped by session code
-        # {"ABC123": [websocket1, websocket2, websocket3]}
-        self.sessions = {}
+        # { "ABC123": [websocket1, websocket2, ...] }
+        self.sessions: dict[str, list[WebSocket]] = {}
 
     async def connect(self, session_code: str, websocket: WebSocket):
-        # add this websocket to the session's list
+        """Accept a new WebSocket and register it under the session code."""
         await websocket.accept()
         if session_code not in self.sessions:
             self.sessions[session_code] = []
         self.sessions[session_code].append(websocket)
 
     async def disconnect(self, session_code: str, websocket: WebSocket):
-        # remove this websocket from the session's list
+        """Remove a WebSocket when the client disconnects."""
         self.sessions[session_code].remove(websocket)
 
     async def broadcast(self, session_code: str, event: dict):
+        """Send a JSON event to every connected client in the session."""
         if session_code not in self.sessions:
-            return  # nobody connected yet, skip
-        # send message to every websocket in the session
+            return  # no one connected yet, nothing to do
         for ws in self.sessions[session_code]:
             await ws.send_text(json.dumps(event))
 
 
 manager = ConnectionManager()
+
+
+# ---------------------------------------------------------------------------
+# Helper: Redis session key
+# ---------------------------------------------------------------------------
+
+
+def session_key(code: str) -> str:
+    """Returns the Redis key for a given session code."""
+    return f"session:{code}"
+
+
+# ---------------------------------------------------------------------------
+# HTTP endpoints
+# ---------------------------------------------------------------------------
 
 
 @app.get("/")
@@ -80,8 +136,13 @@ def root():
 
 @app.post("/create-session")
 def create_session(request: CreateSessionRequest):
+    """
+    Create a new session and return a 6-character join code.
+
+    The code is uppercase alphanumeric (e.g. "X4K9PQ") so it's easy
+    to share verbally. Session expires after 1 hour via Redis TTL.
+    """
     new_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
-    key = f"session:{new_code}"
     session = {
         "code": new_code,
         "host": request.host_name,
@@ -90,35 +151,37 @@ def create_session(request: CreateSessionRequest):
         "participants": [],
         "answers": {},
     }
-    r.setex(key, 3600, json.dumps(session))
-
+    r.setex(session_key(new_code), 3600, json.dumps(session))
     return {"session_code": new_code}
 
 
 @app.get("/session/{code}")
 def get_session(code: str):
-    key = f"session:{code}"
-    data = r.get(key)
-
+    """Return current session state. Used on page load/refresh."""
+    data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
-
     return json.loads(data)
 
 
 @app.post("/join-session/{code}")
 async def join_session(code: str, request: JoinSessionRequest):
-    key = f"session:{code}"
-    ttl = r.ttl(key)
+    """
+    Add a participant to the session and broadcast a participant_joined event.
+
+    We preserve the existing TTL when writing back to Redis so that
+    a participant joining doesn't accidentally extend the session lifetime.
+    """
+    key = session_key(code)
+    ttl = r.ttl(key)  # preserve remaining TTL — don't reset to 3600
     data = r.get(key)
 
     if data is None:
         return {"error": "session not found"}
 
-    dict_data = json.loads(data)
-    dict_data["participants"].append(request.participant_name)
-
-    r.setex(key, ttl, json.dumps(dict_data))
+    session = json.loads(data)
+    session["participants"].append(request.participant_name)
+    r.setex(key, ttl, json.dumps(session))
 
     await manager.broadcast(
         code,
@@ -126,7 +189,7 @@ async def join_session(code: str, request: JoinSessionRequest):
             "type": "participant_joined",
             "data": {
                 "name": request.participant_name,
-                "participants": dict_data["participants"],
+                "participants": session["participants"],
             },
         },
     )
@@ -136,47 +199,66 @@ async def join_session(code: str, request: JoinSessionRequest):
 
 @app.post("/start-session/{code}")
 async def start_session(code: str, request: StartSessionRequest):
-    key = f"session:{code}"
+    """
+    Host starts the session, transitioning status from 'waiting' to 'active'.
+
+    Broadcasts session_started so all lobby clients know to navigate
+    to the survey. Only the host (matched by name) can call this.
+
+    TODO: Replace name-based host check with a proper auth token.
+    """
+    key = session_key(code)
     ttl = r.ttl(key)
     data = r.get(key)
 
     if data is None:
         return {"error": "session not found"}
 
-    dict_data = json.loads(data)
+    session = json.loads(data)
 
-    if request.host_name != dict_data["host"]:
-        return "Only the host can start the session"
+    if request.host_name != session["host"]:
+        return {"error": "only the host can start the session"}
 
-    dict_data["status"] = "active"
-    dict_data["location"] = request.location
-
-    r.setex(key, ttl, json.dumps(dict_data))
+    session["status"] = "active"
+    session["location"] = request.location
+    r.setex(key, ttl, json.dumps(session))
 
     await manager.broadcast(
-        code, {"type": "session_started", "data": {"location": request.location}}
+        code,
+        {
+            "type": "session_started",
+            "data": {"location": request.location},
+        },
     )
 
-    return dict_data
+    return session
 
 
 @app.post("/submit-answers/{code}")
 async def submit_answers(code: str, request: SubmitAnswersRequest):
-    key = f"session:{code}"
+    """
+    Record a participant's survey answers and broadcast answer_submitted.
+
+    When every participant has submitted, this endpoint triggers the AI
+    reveal automatically: it fetches nearby restaurants, calls Gemini,
+    and broadcasts reveal_ready with the full reveal payload.
+
+    The trigger logic is: len(answers) == len(participants).
+    """
+    key = session_key(code)
     ttl = r.ttl(key)
     data = r.get(key)
 
     if data is None:
         return {"error": "session not found"}
 
-    dict_data = json.loads(data)
+    session = json.loads(data)
 
-    if request.participant_name not in dict_data["participants"]:
-        return "Participant name not found in session"
+    if request.participant_name not in session["participants"]:
+        return {"error": "participant not found in session"}
 
-    dict_data["answers"][request.participant_name] = request.answers
-
-    r.setex(key, ttl, json.dumps(dict_data))
+    session["answers"][request.participant_name] = request.answers
+    r.setex(key, ttl, json.dumps(session))
 
     await manager.broadcast(
         code,
@@ -184,37 +266,63 @@ async def submit_answers(code: str, request: SubmitAnswersRequest):
             "type": "answer_submitted",
             "data": {
                 "name": request.participant_name,
-                "submitted": list(dict_data["answers"].keys()),
-                "total": len(dict_data["participants"]),
+                "submitted": list(session["answers"].keys()),
+                "total": len(session["participants"]),
             },
         },
     )
 
-    if len(dict_data["answers"]) == len(dict_data["participants"]):
-        dict_data["status"] = "revealing"
-        loc = [-37.8136, 144.9631]
+    # All answers in — generate and broadcast the reveal
+    if len(session["answers"]) == len(session["participants"]):
+        session["status"] = "revealing"
+
+        # TODO: replace hardcoded coords with actual geocoding from session["location"]
+        loc = [-37.8136, 144.9631]  # Melbourne CBD
         restaurants = get_nearby_restaurants(loc[0], loc[1])
-        users = [{"name": name, **ans} for name, ans in dict_data["answers"].items()]
+
+        users = [{"name": name, **ans} for name, ans in session["answers"].items()]
         reveal = generate_reveal(users, restaurants)
 
         await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
-    return dict_data
+    return session
 
 
 @app.websocket("/ws/{session_code}/{participant_name}")
 async def websocket_endpoint(
     websocket: WebSocket, session_code: str, participant_name: str
 ):
+    """
+    Persistent WebSocket connection for a participant in a session.
+
+    The participant name is in the URL so the server knows who this
+    socket belongs to without any auth handshake.
+
+    Currently the server doesn't do anything with messages sent *from*
+    clients — it just re-broadcasts them. All meaningful events are
+    server-initiated (participant_joined, session_started, etc).
+    """
     await manager.connect(session_code, websocket)
     try:
         while True:
             data = await websocket.receive_text()
-            await manager.broadcast(session_code, {"type": "message", "data": {"participant": participant_name, "message": data}})
+            # Re-broadcast any client message to the session
+            await manager.broadcast(
+                session_code,
+                {
+                    "type": "message",
+                    "data": {"participant": participant_name, "message": data},
+                },
+            )
     except Exception:
         await manager.disconnect(session_code, websocket)
 
 
+# ---------------------------------------------------------------------------
+# Restaurant fetching (Google Places API)
+# ---------------------------------------------------------------------------
+
+# Place types that indicate a venue is NOT a restaurant we want to recommend
 INVALID_TYPES = {
     "lodging",
     "hotel",
@@ -231,6 +339,7 @@ INVALID_TYPES = {
     "shopping_mall",
 }
 
+# Generic types that appear on almost every place — not useful as cuisine tags
 GENERIC_TYPES = {
     "restaurant",
     "food",
@@ -241,8 +350,14 @@ GENERIC_TYPES = {
 }
 
 
-def haversine(lat1, lng1, lat2, lng2):
-    R = 6371000  # Earth radius in metres
+def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """
+    Calculate straight-line distance between two lat/lng points in metres.
+
+    Uses the Haversine formula, which accounts for Earth's curvature.
+    Good enough for short distances like 'walking to a restaurant'.
+    """
+    R = 6371000  # Earth's radius in metres
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lng2 - lng1)
@@ -253,16 +368,23 @@ def haversine(lat1, lng1, lat2, lng2):
     return 2 * R * math.asin(math.sqrt(a))
 
 
-def clean_restaurants(raw_places: list, user_lat: float, user_lng: float):
+def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> list:
+    """
+    Filter and reshape raw Google Places API results into usable restaurant dicts.
+
+    Filters out:
+    - Non-restaurant venues (hotels, gyms, pharmacies, etc.)
+    - Places without any food-related type tag
+
+    Returns a list of dicts with consistent keys for the AI prompt.
+    """
     cleaned = []
     for place in raw_places:
         types = place.get("types", [])
 
-        # skip if it's clearly not a restaurant
         if any(t in INVALID_TYPES for t in types):
             continue
 
-        # must have at least "restaurant" or "food" somewhere
         if not any(
             t in ["restaurant", "food", "cafe", "bar", "meal_takeaway"] for t in types
         ):
@@ -275,6 +397,7 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float):
                 "review_count": place.get("userRatingCount", 0),
                 "price_level": place.get("priceLevel", "Unknown"),
                 "address": place.get("formattedAddress", ""),
+                # Strip generic suffixes so cuisines read as e.g. "japanese" not "japanese_restaurant"
                 "cuisines": [
                     t.replace("_restaurant", "").replace("_", " ")
                     for t in types
@@ -296,15 +419,27 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float):
     return cleaned
 
 
-def get_nearby_restaurants(latitude: float, longitude: float):
-    url = "https://places.googleapis.com/v1/places:searchNearby"
+def get_nearby_restaurants(latitude: float, longitude: float) -> list:
+    """
+    Fetch and clean restaurants within 500m of the given coordinates.
 
+    Uses the Google Places API v1 (New) searchNearby endpoint.
+    Returns up to 20 results, filtered through clean_restaurants.
+    """
+    url = "https://places.googleapis.com/v1/places:searchNearby"
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount,places.priceLevel,places.formattedAddress,places.types,places.regularOpeningHours,places.editorialSummary,places.id,places.location",
+        # FieldMask tells the API exactly which fields to return.
+        # Only requesting what we need keeps the response small and avoids
+        # being billed for fields we don't use.
+        "X-Goog-FieldMask": (
+            "places.displayName,places.rating,places.userRatingCount,"
+            "places.priceLevel,places.formattedAddress,places.types,"
+            "places.regularOpeningHours,places.editorialSummary,"
+            "places.id,places.location"
+        ),
     }
-
     body = {
         "includedTypes": ["restaurant"],
         "maxResultCount": 20,
@@ -315,40 +450,62 @@ def get_nearby_restaurants(latitude: float, longitude: float):
             }
         },
     }
-
     response = requests.post(url, headers=headers, json=body)
     raw = response.json().get("places", [])
     return clean_restaurants(raw, latitude, longitude)
 
 
-@app.get("/test-places")
-def test_places():
-    return get_nearby_restaurants(-37.8136, 144.9631)
-
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# ---------------------------------------------------------------------------
+# AI reveal generation (Google Gemini)
+# ---------------------------------------------------------------------------
 
 
 def generate_reveal(users: list[dict], restaurants: list[dict]) -> dict:
-    # prefilter first
+    """
+    Generate the personality roasts and restaurant recommendation via Gemini.
+
+    Steps:
+    1. Pre-filter to only open restaurants, take top 6 by rating
+    2. Format users and restaurants as plain text for the prompt
+    3. Call Gemini with a system prompt defining the output format
+    4. Parse and return the JSON response
+
+    Args:
+        users: List of participant dicts, each with name + survey answers
+        restaurants: Cleaned restaurant dicts from get_nearby_restaurants
+
+    Returns:
+        Reveal dict matching the structure:
+        {
+            personality_lines: { name: line },
+            agreements: str,
+            conflicts: str,
+            primary: { name, reason, maps_link },
+            backups: [{ name, reason }]
+        }
+    """
+    # Only consider places that are currently open, ranked by quality
     restaurants = [r for r in restaurants if r["open_now"] != False]
     restaurants = sorted(
         restaurants, key=lambda r: (r["rating"], r["review_count"]), reverse=True
     )[:6]
 
-    preferences_text = []
-    for user in users:
-        preferences_text.append(
-            f"{user['name']}: hunger={user['hunger']}, vibe={user['vibe']}, cuisines={user['cuisines_ranked']}, travel_distance={user['travel_distance']}, dietary={user['dietary']}"
-        )
-    preferences_text = "\n".join(preferences_text)
+    # Format user preferences as a readable block for the prompt
+    preferences_text = "\n".join(
+        f"{u['name']}: hunger={u['hunger']}, vibe={u['vibe']}, "
+        f"cuisines={u['cuisines_ranked']}, travel_distance={u['travel_distance']}, "
+        f"dietary={u['dietary']}"
+        for u in users
+    )
 
-    restaurants_text = []
-    for rest in restaurants:
-        restaurants_text.append(
-            f"{rest['name']}: cuisines={rest['cuisines']}, rating={rest['rating']} ({rest['review_count']} reviews), price_level={rest['price_level']}, distance_meters={rest['distance_meters']}, open_now={rest['open_now']}, summary={rest['summary']}, address={rest['address']}, maps_link={rest['maps_link']}"
-        )
-    restaurants_text = "\n".join(restaurants_text)
+    # Format restaurant data as a readable block for the prompt
+    restaurants_text = "\n".join(
+        f"{r['name']}: cuisines={r['cuisines']}, rating={r['rating']} "
+        f"({r['review_count']} reviews), price_level={r['price_level']}, "
+        f"distance_meters={r['distance_meters']}, open_now={r['open_now']}, "
+        f"summary={r['summary']}, address={r['address']}, maps_link={r['maps_link']}"
+        for r in restaurants
+    )
 
     system_prompt = """You are a fun, hype-man AI helping a group of friends decide where to eat.
 You're part of the group, not an outsider observing them.
@@ -416,18 +573,32 @@ Return this exact JSON structure:
     )
 
     raw = response.text.strip()
-    print(f"AI response: '{raw}'")
-    # strip markdown code blocks if present
+    print(f"Gemini raw response: '{raw}'")
+
+    # Strip markdown code fences if the model wrapped the JSON anyway
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
             raw = raw[4:]
     raw = raw.strip()
+
     return json.loads(raw)
+
+
+# ---------------------------------------------------------------------------
+# Dev/test endpoints — remove before deploying to production
+# ---------------------------------------------------------------------------
+
+
+@app.get("/test-places")
+def test_places():
+    """Smoke test for the Places API integration."""
+    return get_nearby_restaurants(-37.8136, 144.9631)
 
 
 @app.get("/test-reveal")
 def test_reveal():
+    """Smoke test for the full reveal pipeline with hardcoded users."""
     restaurants = get_nearby_restaurants(-37.8136, 144.9631)
     users = [
         {
