@@ -13,6 +13,7 @@ export default function HomePage() {
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [location, setLocation] = useState("");
 
   function selectMode(selected: Mode) {
     // If clicking the already-open mode, close it
@@ -24,6 +25,7 @@ export default function HomePage() {
 
   async function handleCreate() {
     if (!name.trim()) return setError("Enter your name");
+    if (!location.trim()) return setError("Enter a location");
     setLoading(true);
     setError("");
     try {
@@ -35,7 +37,7 @@ export default function HomePage() {
         participant_name: name.trim(),
       });
       navigate(`/lobby/${code}`, {
-        state: { name: name.trim(), isHost: true },
+        state: { name: name.trim(), isHost: true, location: location.trim() },
       });
     } catch {
       setError("Failed to create session. Is the backend running?");
@@ -102,6 +104,14 @@ export default function HomePage() {
             onChange={(e) => setName(e.target.value)}
           />
 
+          {mode === "create" && (
+            <input
+              className="border rounded px-3 py-2"
+              placeholder="Location (e.g. Melbourne CBD)"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          )}
           {mode === "join" && (
             <input
               className="border rounded px-3 py-2 uppercase"
