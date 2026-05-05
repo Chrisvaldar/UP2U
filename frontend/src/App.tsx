@@ -1,8 +1,19 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import HomePage from "@/pages/HomePage";
+import LobbyPage from "@/pages/LobbyPage";
+import SurveyPage from "@/pages/SurveyPage";
+import RevealPage from "@/pages/RevealPage";
+
 function App() {
   return (
-    <div className="bg-zinc-900 min-h-screen flex items-center justify-center">
-      <h1 className="text-white text-4xl font-bold">UP2U</h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/lobby/:code" element={<LobbyPage />} />
+        <Route path="/survey/:code" element={<SurveyPage />} />
+        <Route path="/reveal/:code" element={<RevealPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
