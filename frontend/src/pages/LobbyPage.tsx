@@ -62,7 +62,6 @@ export default function LobbyPage() {
 
   async function handleStart() {
     setStarting(true);
-    console.log(state);
     try {
       await axios.post(`${API_BASE}/start-session/${code}`, {
         host_name: state.name,
