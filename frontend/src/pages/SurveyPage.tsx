@@ -94,4 +94,16 @@ export default function SurveyPage() {
   function updateAnswer(field: string, value: unknown) {
     setAnswers({ ...answers, [field]: value });
   }
+
+  async function handleNext() {
+    if (currentQuestion == QUESTIONS.length - 1) {
+      await axios.post(`${API_BASE}/submit-answers/${code}`, {
+        participant_name: state.name,
+        answers: answers,
+      });
+      setSubmitted(true);
+    } else {
+      setCurrentQuestion(currentQuestion + 1);
+    }
+  }
 }
