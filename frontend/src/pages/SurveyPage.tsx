@@ -5,6 +5,7 @@ import axios from "axios";
 const API_BASE = "http://localhost:8000";
 const WS_BASE = "ws://localhost:8000";
 
+// Question bank to display to user (cuisines subject to change)
 const QUESTIONS = [
   { id: "hunger", type: "scale", options: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
   {
@@ -62,12 +63,12 @@ export default function SurveyPage() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    // Connect WebSocket and check reveal_ready event
     const ws = new WebSocket(`${WS_BASE}/ws/${code}/${state.name}`);
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
-
       if (message.type === "reveal_ready") {
         navigate(`/reveal/${code}`, {
           state: { name: state.name, isHost: state.isHost },
@@ -79,4 +80,18 @@ export default function SurveyPage() {
       ws.close();
     };
   }, []);
+
+  function handleCuisineToggle(cuisine: string) {
+    const current = answers.cuisines_ranked;
+    if (current.includes(cuisine)) {
+      const updated = current.filter((c) => c !== cuisine);
+      updateAnswer("cuisines_ranked", updated);
+    } else {
+      updateAnswer("cuisines_ranked", [...current, cuisine]);
+    }
+  }
+
+  function updateAnswer(field: string, value: unknown) {
+    setAnswers({ ...answers, [field]: value });
+  }
 }
