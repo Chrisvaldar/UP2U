@@ -60,6 +60,7 @@ export default function SurveyPage() {
     dietary: [] as string[],
   });
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -81,13 +82,23 @@ export default function SurveyPage() {
     };
   }, []);
 
-  function handleCuisineToggle(cuisine: string) {
-    const current = answers.cuisines_ranked;
-    if (current.includes(cuisine)) {
-      const updated = current.filter((c) => c !== cuisine);
-      updateAnswer("cuisines_ranked", updated);
+  function handleRankToggle(field: string, option: string) {
+    const current = answers[field as keyof typeof answers] as string[];
+    if (current.includes(option)) {
+      const updated = current.filter((c) => c !== option);
+      updateAnswer(field, updated);
     } else {
-      updateAnswer("cuisines_ranked", [...current, cuisine]);
+      updateAnswer(field, [...current, option]);
+    }
+  }
+
+  function handleMultiToggle(field: string, option: string) {
+    const current = answers[field as keyof typeof answers] as string[];
+    if (current.includes(option)) {
+      const updated = current.filter((c) => c !== option);
+      updateAnswer(field, updated);
+    } else {
+      updateAnswer(field, [...current, option]);
     }
   }
 
@@ -97,13 +108,77 @@ export default function SurveyPage() {
 
   async function handleNext() {
     if (currentQuestion == QUESTIONS.length - 1) {
-      await axios.post(`${API_BASE}/submit-answers/${code}`, {
-        participant_name: state.name,
-        answers: answers,
-      });
-      setSubmitted(true);
+      try {
+        await axios.post(`${API_BASE}/submit-answers/${code}`, {
+          participant_name: state.name,
+          answers: answers,
+        });
+        setSubmitted(true);
+      } catch {
+        setError("Failed to join. Check the code and try again.");
+      }
     } else {
       setCurrentQuestion(currentQuestion + 1);
     }
   }
+
+  if (submitted) {
+    return <div>Waiting for everyone...</div>;
+  }
+  return (
+    <div>
+      {/* progress indicator */}
+      {QUESTIONS[currentQuestion].type === "scale" &&
+        //render scale input
+        QUESTIONS[currentQuestion].options.map((option) => (
+          <button
+            key={option}
+            onClick={() => updateAnswer(QUESTIONS[currentQuestion].id, option)}
+          >
+            {option}
+          </button>
+        ))}
+      {QUESTIONS[currentQuestion].type === "single" &&
+        // render single select chips
+        QUESTIONS[currentQuestion].options.map((option) => (
+          <button
+            key={option}
+            onClick={() => updateAnswer(QUESTIONS[currentQuestion].id, option)}
+          >
+            {option}
+          </button>
+        ))}
+      {QUESTIONS[currentQuestion].type === "multi" &&
+        // render multi chips
+        QUESTIONS[currentQuestion].options.map((option) => (
+          <button
+            key={option}
+            onClick={() =>
+              handleMultiToggle(QUESTIONS[currentQuestion].id, option as string)
+            }
+          >
+            {option}
+          </button>
+        ))}
+      {QUESTIONS[currentQuestion].type === "rank" &&
+        // render rank chips
+        QUESTIONS[currentQuestion].options.map((option) => (
+          <button
+            key={option}
+            onClick={() =>
+              handleRankToggle(QUESTIONS[currentQuestion].id, option as string)
+            }
+          >
+            {option}
+          </button>
+        ))}
+      {/* next/submit button */}
+      <button
+        className="bg-primary text-primary-foreground rounded px-6 py-3 font-medium disabled:opacity-50"
+        onClick={handleNext}
+      >
+        {currentQuestion == QUESTIONS.length - 1 ? "Submit" : "Next Question"}
+      </button>
+    </div>
+  );
 }
