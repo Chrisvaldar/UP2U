@@ -16,14 +16,19 @@ Docs:
 """
 
 from fastapi import FastAPI
+from pydantic import BaseModel
 
 app = FastAPI(title="UP2U Learn")
-
+class CreateSessionRequest(BaseModel):
+  host_name: str
 
 @app.get("/")
 def health():
-    return 
+    return {"message": "It's alive!"}
 
+@app.post("/create-session")
+def create_session(request: CreateSessionRequest):
+    return {"message": f"ur name is {request.host_name}"}
 
 # TODO (Day 1): Add Pydantic models and Redis connection
 # TODO (Day 1): POST /create-session
