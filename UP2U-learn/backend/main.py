@@ -15,20 +15,56 @@ Docs:
   http://localhost:8000/docs
 """
 
+import os
 from fastapi import FastAPI
 from pydantic import BaseModel
+from dotenv import load_dotenv
+import redis
+import random
+import string
+import json
+
+load_dotenv()
+r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 
 app = FastAPI(title="UP2U Learn")
+
+
 class CreateSessionRequest(BaseModel):
-  host_name: str
+    host_name: str
+
 
 @app.get("/")
 def health():
     return {"message": "It's alive!"}
 
+
 @app.post("/create-session")
 def create_session(request: CreateSessionRequest):
-    return {"message": f"ur name is {request.host_name}"}
+    ttl_seconds = 3600
+
+    code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    session = {
+        "code": code,
+        "host": request.host_name,
+        "status": "waiting",
+        "location": None,
+        "participants": [],
+        "answers": {},
+    }
+
+    r.setex(f"session:{code}", ttl_seconds, json.dumps(session))
+
+    return {"code": code}
+
+
+@app.get("/session/{code}")
+def get_session():
+    data = r.get(request.code)
+    if data is None:
+      return {"error": "session not found"}
+    return json.loads(data)
+
 
 # TODO (Day 1): Add Pydantic models and Redis connection
 # TODO (Day 1): POST /create-session
