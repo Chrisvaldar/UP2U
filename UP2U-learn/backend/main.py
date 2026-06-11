@@ -33,8 +33,14 @@ app = FastAPI(title="UP2U Learn")
 class CreateSessionRequest(BaseModel):
     host_name: str
 
+
 class JoinSessionRequest(BaseModel):
     participant_name: str
+
+
+class StartSessionRequest(BaseModel):
+    host_name: str
+    location: str
 
 
 def session_key(code: str) -> str:
@@ -69,8 +75,9 @@ def create_session(request: CreateSessionRequest):
 def get_session(code: str):
     data = r.get(session_key(code))
     if data is None:
-      return {"error": "session not found"}
+        return {"error": "session not found"}
     return json.loads(data)
+
 
 @app.post("/join-session/{code}")
 def join_session(request: JoinSessionRequest, code: str):
@@ -80,12 +87,27 @@ def join_session(request: JoinSessionRequest, code: str):
 
     session = json.loads(data)
     ttl_seconds = r.ttl(session_key(code))
-    
+
     session["participants"].append(request.participant_name)
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
 
     return session
 
+
+@app.post("/start-session/{code}")
+def start_session(request: StartSessionRequest, code: str):
+    data = r.get(session_key(code))
+    session = json.loads(data)
+    ttl_seconds = r.ttl(session_key(code))
+
+    if request.host_name == session["host"]:
+        session["status"] = "active"
+        session["location"] = request.location
+
+        r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        return session
+
+    return {"error": "Only the host can start the session"}
 
 
 # TODO (Day 1): Add Pydantic models and Redis connection
