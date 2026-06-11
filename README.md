@@ -13,8 +13,6 @@ UP2U is a real-time group dining decision app that turns the most annoying part 
 | `backend/` / `frontend/` | Original AI-assisted version — kept as **reference** (answer key, do not copy-paste while learning) |
 | `UP2U-learn/` | Rebuilt from scratch to actually understand it — **all new work goes here** |
 
-Working on the rebuild? Start with [`UP2U-learn/HANDOFF.md`](UP2U-learn/HANDOFF.md) for progress, context, and how to help.
-
 ---
 
 ## The Problem

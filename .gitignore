@@ -210,3 +210,9 @@ __marimo__/
 .env
 venv/
 __pycache__/
+
+# Local agent/learning notes — not for the repo (keep on disk for Cursor context)
+LEARNING_PLAN.md
+UP2U-learn/HANDOFF.md
+UP2U-learn/README.md
+UP2U-learn/backend/LEARNING.md
