@@ -16,7 +16,7 @@ Docs:
 """
 
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import redis
@@ -29,6 +29,27 @@ r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 
 app = FastAPI(title="UP2U Learn")
 
+
+class ConnectionManager:
+    def __init__(self):
+        self.sessions: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, session_code: str, websocket: WebSocket):
+        await websocket.accept()
+        if session_code not in self.sessions:
+            self.sessions[session_code] = []
+        self.sessions[session_code].append(websocket)
+
+    async def disconnect(self, session_code: str, websocket: WebSocket):
+        self.sessions[session_code].remove(websocket)
+
+    async def broadcast(self, session_code: str, event: dict):
+        if session_code not in self.sessions:
+            return
+        for ws in self.sessions[session_code]:
+            await ws.send_text(json.dumps(event))
+
+manager = ConnectionManager()
 
 class CreateSessionRequest(BaseModel):
     host_name: str
@@ -137,11 +158,5 @@ def submit_answers(request: SubmitAnswersRequest, code: str):
     return session
 
 
-# TODO (Day 1): Add Pydantic models and Redis connection
-# TODO (Day 1): POST /create-session
-# TODO (Day 1): GET /session/{code}
-# TODO (Day 2): POST /join-session/{code}
-# TODO (Day 2): POST /start-session/{code}
-# TODO (Day 2): POST /submit-answers/{code}
 # TODO (Day 3): ConnectionManager + WebSocket /ws/{code}/{name}
 # TODO (Day 4): Places API + Gemini reveal pipeline
