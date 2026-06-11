@@ -43,6 +43,11 @@ class StartSessionRequest(BaseModel):
     location: str
 
 
+class SubmitAnswersRequest(BaseModel):
+    participant_name: str
+    answers: dict
+
+
 def session_key(code: str) -> str:
     return f"session:{code}"
 
@@ -97,6 +102,8 @@ def join_session(request: JoinSessionRequest, code: str):
 @app.post("/start-session/{code}")
 def start_session(request: StartSessionRequest, code: str):
     data = r.get(session_key(code))
+    if data is None:
+        return {"error": "session not found"}
     session = json.loads(data)
     ttl_seconds = r.ttl(session_key(code))
 
@@ -108,6 +115,26 @@ def start_session(request: StartSessionRequest, code: str):
         return session
 
     return {"error": "Only the host can start the session"}
+
+
+@app.post("/submit-answers/{code}")
+def submit_answers(request: SubmitAnswersRequest, code: str):
+    data = r.get(session_key(code))
+    if data is None:
+        return {"error": "session not found"}
+
+    session = json.loads(data)
+    ttl_seconds = r.ttl(session_key(code))
+
+    if request.participant_name not in session["participants"]:
+        return {"error": "Participant not found"}
+    session["answers"][request.participant_name] = request.answers
+
+    if len(session["answers"]) == len(session["participants"]):
+        session["status"] = "revealing"
+
+    r.setex(session_key(code), ttl_seconds, json.dumps(session))
+    return session
 
 
 # TODO (Day 1): Add Pydantic models and Redis connection
