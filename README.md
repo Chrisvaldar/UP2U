@@ -6,6 +6,17 @@ UP2U is a real-time group dining decision app that turns the most annoying part 
 
 ---
 
+## Repo structure
+
+| Folder | What it is |
+|--------|------------|
+| `backend/` / `frontend/` | Original AI-assisted version — kept as **reference** (answer key, do not copy-paste while learning) |
+| `UP2U-learn/` | Rebuilt from scratch to actually understand it — **all new work goes here** |
+
+Working on the rebuild? Start with [`UP2U-learn/HANDOFF.md`](UP2U-learn/HANDOFF.md) for progress, context, and how to help.
+
+---
+
 ## The Problem
 
 Every group chat has that one person who says "up to you" when asked where to eat. Then everyone says "up to you." Then nobody decides. Then you end up at the same place you always go. And the worst part, it turns a fun hangout into a game of passing along the mental burden of finding a place to eat.
