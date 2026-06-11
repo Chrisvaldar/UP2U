@@ -49,7 +49,9 @@ class ConnectionManager:
         for ws in self.sessions[session_code]:
             await ws.send_text(json.dumps(event))
 
+
 manager = ConnectionManager()
+
 
 class CreateSessionRequest(BaseModel):
     host_name: str
@@ -106,7 +108,7 @@ def get_session(code: str):
 
 
 @app.post("/join-session/{code}")
-def join_session(request: JoinSessionRequest, code: str):
+async def join_session(request: JoinSessionRequest, code: str):
     data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
@@ -116,6 +118,17 @@ def join_session(request: JoinSessionRequest, code: str):
 
     session["participants"].append(request.participant_name)
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
+
+    await manager.broadcast(
+        code,
+        {
+            "type": "participant_joined",
+            "data": {
+                "name": request.participant_name,
+                "participants": session["participants"],
+            },
+        },
+    )
 
     return session
 
@@ -156,6 +169,19 @@ def submit_answers(request: SubmitAnswersRequest, code: str):
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
     return session
+
+
+@app.websocket("/ws/{session_code}/{participant_name}")
+async def websocket_endpoint(
+    websocket: WebSocket, session_code: str, participant_name: str
+):
+    await manager.connect(session_code, websocket)
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except:
+        await manager.disconnect(session_code, websocket)
 
 
 # TODO (Day 3): ConnectionManager + WebSocket /ws/{code}/{name}
