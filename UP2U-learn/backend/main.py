@@ -134,7 +134,7 @@ async def join_session(request: JoinSessionRequest, code: str):
 
 
 @app.post("/start-session/{code}")
-def start_session(request: StartSessionRequest, code: str):
+async def start_session(request: StartSessionRequest, code: str):
     data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
@@ -146,13 +146,24 @@ def start_session(request: StartSessionRequest, code: str):
         session["location"] = request.location
 
         r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        await manager.broadcast(
+            code,
+            {
+                "type": "session_started",
+                "data": {
+                    "host": request.host_name,
+                    "location": request.location,
+                    "participants": session["participants"],
+                },
+            },
+        )
         return session
 
     return {"error": "Only the host can start the session"}
 
 
 @app.post("/submit-answers/{code}")
-def submit_answers(request: SubmitAnswersRequest, code: str):
+async def submit_answers(request: SubmitAnswersRequest, code: str):
     data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
@@ -164,8 +175,22 @@ def submit_answers(request: SubmitAnswersRequest, code: str):
         return {"error": "Participant not found"}
     session["answers"][request.participant_name] = request.answers
 
+    await manager.broadcast(
+        code,
+        {
+            "type": "answer_submitted",
+            "data": {
+                "name": request.participant_name,
+                "submitted": list(session["answers"].keys()),
+                "total": len(session["participants"]),
+            },
+        },
+    )
+
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
+        reveal = {"placeholder": "todo"}  # temp until Gemini
+        await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
     return session
