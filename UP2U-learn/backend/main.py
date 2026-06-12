@@ -25,11 +25,15 @@ import string
 import json
 import math
 import requests
+from google import genai
+from google.genai.errors import ClientError, ServerError
+from groq import Groq, RateLimitError
 
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 app = FastAPI(title="UP2U Learn")
 
@@ -198,7 +202,8 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
         loc = [-37.8136, 144.9631]  # Melbourne until geocoding
         restaurants = get_nearby_restaurants(loc[0], loc[1], radius)
-        reveal = generate_reveal(users, restaurants)
+        shortlist = rank_restaurants_for_group(restaurants, radius, users)
+        reveal = generate_reveal(users, shortlist)
         await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -395,6 +400,136 @@ def cuisine_matches(restaurant, ranked_cuisines):
         if any(res in rc for rc in lower_res):
             return True
     return False
+
+
+def _gemini_is_rate_limited(exc: Exception) -> bool:
+    if isinstance(exc, (ClientError, ServerError)):
+        return exc.code in (429, 503)
+    return False
+
+
+def call_gemini(system_prompt: str, user_prompt: str) -> str:
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        config={"system_instruction": system_prompt},
+        contents=user_prompt,
+    )
+    return response.text.strip()
+
+
+def call_groq(system_prompt: str, user_prompt: str) -> str:
+    client = Groq(api_key=GROQ_API_KEY)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+def parse_reveal_response(raw: str) -> dict:
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    return json.loads(raw.strip())
+
+
+def generate_reveal(users: list[dict], restaurants: list[dict]):
+    restaurants = sorted(
+        restaurants, key=lambda r: (r["rating"], r["review_count"]), reverse=True
+    )[:6]
+
+    # Format user preferences as a readable block for the prompt
+    preferences_text = "\n".join(
+        f"{u['name']}: hunger={u['hunger']}, vibe={u['vibe']}, "
+        f"cuisines={u['cuisines_ranked']}, travel_distance={u['travel_distance']}, "
+        f"dietary={u['dietary']}"
+        for u in users
+    )
+
+    # Format restaurant data as a readable block for the prompt
+    restaurants_text = "\n".join(
+        f"{r['name']}: cuisines={r['cuisines']}, rating={r['rating']} "
+        f"({r['review_count']} reviews), price_level={r['price_level']}, "
+        f"distance_meters={r['distance_meters']}, open_now={r['open_now']}, "
+        f"summary={r['summary']}, address={r['address']}, maps_link={r['maps_link']}"
+        for r in restaurants
+    )
+
+    system_prompt = """You are a fun, hype-man AI helping a group of friends decide where to eat.
+You're part of the group, not an outsider observing them. Only pick from the restaurant's list, don't invent places
+
+Your job:
+1. Write a SHORT roast-style personality line for each person based on their food mood
+2. Summarise what the group agrees on and where they clash
+3. Pick the single best restaurant and hype it up
+4. Provide 2 backup options with punchy reasons
+
+Rules for personality lines:
+- MAX 10 words, roast-style but friendly
+- Personality lines should roast the person's behaviour, not just describe their preferences
+- Use deadpan humour, not just exclamation marks
+- Talk TO the group directly, not about them
+
+Personality line examples:
+- "Someone REALLY needs their Thai fix right now 🌶️"
+- "Apparently salads count as a meal, Sarah 🥗"
+- "Would literally eat anything right now, no standards detected 🤤"
+- "Came for the vibes, the food is secondary apparently 😌"  
+- "One person vetoed everything fun with their dietary restrictions 🥬"
+- "Ranked every cuisine the same. Thanks for the input, Josh."
+
+Rules for agreements and conflicts:
+- Speak as part of the group — use "everyone", "most of us", "almost everyone"
+- NEVER say "they both" or "they" — you are IN the group
+- Make it fun — add relevant emoji, a joke, a little drama
+- MAX 15 words each
+- Example agreements: "Everyone's starving and nobody wants to travel far 🏃"
+- Example conflicts: "Half of us want quick bites, the other half want a vibe 👀"
+
+Rules for primary reason:
+- 2 sentences max, hype it up like you're genuinely excited
+- Explain why it works for THIS specific group
+
+Rules for backup reasons:
+- 1 sentence, punchy
+
+Other rules:
+- Respect dietary restrictions strictly, never recommend somewhere a person can't eat
+- Prefer open, highly rated, highly reviewed places
+- Return ONLY valid JSON, no explanation, no markdown backticks"""
+
+    user_prompt = f"""Group preferences:
+{preferences_text}
+
+Restaurants:
+{restaurants_text}
+
+Return this exact JSON structure:
+{{
+  "personality_lines": {{"name": "line"}},
+  "agreements": "...",
+  "conflicts": "...",
+  "primary": {{"name": "...", "reason": "...", "maps_link": "..."}},
+  "backups": [{{"name": "...", "reason": "..."}}]
+}}"""
+
+    try:
+        raw = call_gemini(system_prompt, user_prompt)
+        print(f"Gemini raw response: '{raw}'")
+    except (ClientError, ServerError) as e:
+        if _gemini_is_rate_limited(e) and GROQ_API_KEY:
+            print(f"Gemini rate limited ({e.code}), falling back to Groq")
+            raw = call_groq(system_prompt, user_prompt)
+            print(f"Groq raw response: '{raw}'")
+        else:
+            raise
+
+    return parse_reveal_response(raw)
 
 
 # TODO (Day 4): Places API + Gemini reveal pipeline
