@@ -388,13 +388,18 @@ def rank_restaurants_for_group(
         if r["open_now"] != False and r["distance_meters"] <= radius
     ]
 
-    restaurants = [
+    filtered = [
         r
         for r in open_and_distance
         if all(cuisine_matches(r, u["cuisines_ranked"]) for u in users)
     ]
+    if not filtered:
+        filtered = open_and_distance
 
-    return restaurants if restaurants else open_and_distance
+    for r in filtered:
+        r["_group_score"] = score_restaurant_for_group(r, users, radius)
+
+    return sorted(filtered, key=lambda r: r["_group_score"], reverse=True)
 
 
 def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) -> dict:
@@ -411,6 +416,35 @@ def cuisine_matches(restaurant, ranked_cuisines):
         if any(res in rc for rc in lower_res):
             return True
     return False
+
+
+def score_cuisine(restaurant: dict, ranked_cuisines: list[str]) -> int:
+    res_cuisines = [str.lower(s) for s in restaurant["cuisines"]]
+    ranked_cuisines = [str.lower(s) for s in ranked_cuisines]
+    best_match = 0
+    points = [10, 7, 5, 3]
+    for index, cuisine in enumerate(ranked_cuisines):
+        if any(cuisine in rc for rc in res_cuisines):
+            best_match = max(best_match, points[min(index, len(points) - 1)])
+    return best_match
+
+
+def score_restaurant_for_person(
+    restaurant: dict, user: dict, radius: float
+) -> float:
+    total = score_cuisine(restaurant, user["cuisines_ranked"])
+
+    if radius > 0:
+        total += (radius - restaurant["distance_meters"]) / radius * 5
+    total += restaurant["rating"] * 0.5
+
+    return total
+
+
+def score_restaurant_for_group(
+    restaurant: dict, users: list[dict], radius: float
+) -> float:
+    return min(score_restaurant_for_person(restaurant, user, radius) for user in users)
 
 
 def _gemini_is_rate_limited(exc: Exception) -> bool:
@@ -450,9 +484,7 @@ def parse_reveal_response(raw: str) -> dict:
 
 
 def generate_reveal(users: list[dict], restaurants: list[dict]):
-    restaurants = sorted(
-        restaurants, key=lambda r: (r["rating"], r["review_count"]), reverse=True
-    )[:6]
+    restaurants = restaurants[:6]
 
     # Format user preferences as a readable block for the prompt
     preferences_text = "\n".join(
@@ -542,6 +574,7 @@ Return this exact JSON structure:
 
     return parse_reveal_response(raw)
 
+
 @app.get("/test-reveal")
 def test_reveal():
     """Smoke test for the full reveal pipeline with hardcoded users."""
@@ -565,6 +598,7 @@ def test_reveal():
     ]
     return run_reveal_pipeline(users, -37.8136, 144.9631)
 
+
 def geocode_location(address: str) -> tuple[float, float]:
     """
     Convert a text address to (latitude, longitude) via Geocoding API v4.
@@ -576,9 +610,7 @@ def geocode_location(address: str) -> tuple[float, float]:
         raise ValueError("Address is required")
 
     url = f"https://geocode.googleapis.com/v4/geocode/address/{quote(address)}"
-    response = requests.get(
-        url, headers={"X-Goog-Api-Key": GOOGLE_PLACES_API_KEY}
-    )
+    response = requests.get(url, headers={"X-Goog-Api-Key": GOOGLE_PLACES_API_KEY})
     data = response.json()
     results = data.get("results", [])
     if not results:
@@ -592,4 +624,3 @@ def geocode_location(address: str) -> tuple[float, float]:
 def test_geocode(address: str = "Federation Square, Melbourne"):
     lat, lng = geocode_location(address)
     return {"address": address, "latitude": lat, "longitude": lng}
-
