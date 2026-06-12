@@ -198,12 +198,8 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]
-        radius = get_search_radius(users)
-
         loc = [-37.8136, 144.9631]  # Melbourne until geocoding
-        restaurants = get_nearby_restaurants(loc[0], loc[1], radius)
-        shortlist = rank_restaurants_for_group(restaurants, radius, users)
-        reveal = generate_reveal(users, shortlist)
+        reveal = run_reveal_pipeline(users, loc[0], loc[1])
         await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -393,6 +389,13 @@ def rank_restaurants_for_group(
     return restaurants if restaurants else open_and_distance
 
 
+def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) -> dict:
+    radius = get_search_radius(users)
+    restaurants = get_nearby_restaurants(latitude, longitude, radius)
+    shortlist = rank_restaurants_for_group(restaurants, radius, users)
+    return generate_reveal(users, shortlist)
+
+
 def cuisine_matches(restaurant, ranked_cuisines):
     lower_res = [str.lower(s) for s in restaurant["cuisines"]]
     lower_ranked = [str.lower(s) for s in ranked_cuisines]
@@ -552,8 +555,4 @@ def test_reveal():
             "dietary": ["vegetarian"],
         },
     ]
-    radius = get_search_radius(users)
-    loc = [-37.8136, 144.9631]  # Melbourne until geocoding
-    restaurants = get_nearby_restaurants(loc[0], loc[1], radius)
-    shortlist = rank_restaurants_for_group(restaurants, radius, users)
-    return generate_reveal(users, shortlist)
+    return run_reveal_pipeline(users, -37.8136, 144.9631)
