@@ -29,6 +29,7 @@ import requests
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 app = FastAPI(title="UP2U Learn")
 
@@ -197,7 +198,7 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
         loc = [-37.8136, 144.9631]  # Melbourne until geocoding
         restaurants = get_nearby_restaurants(loc[0], loc[1], radius)
-        reveal = generate_reveal(users, restaurants)  
+        reveal = generate_reveal(users, restaurants)
         await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -307,6 +308,7 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> lis
         )
     return cleaned
 
+
 TRAVEL_LIMITS = {
     "short walk (<500m)": 500,
     "public transport (<2km)": 2000,
@@ -323,7 +325,10 @@ def get_search_radius(users: list[dict]) -> float:
     ]
     return min(limits) if limits else DEFAULT_TRAVEL_LIMIT
 
-def get_nearby_restaurants(latitude: float, longitude: float, radius: float = 500) -> list:
+
+def get_nearby_restaurants(
+    latitude: float, longitude: float, radius: float = 500
+) -> list:
     """
     Fetch and clean restaurants within 500m of the given coordinates.
 
@@ -359,7 +364,37 @@ def get_nearby_restaurants(latitude: float, longitude: float, radius: float = 50
     restaurants = clean_restaurants(raw, latitude, longitude)
     return [r for r in restaurants if r["distance_meters"] <= radius]
 
+
 @app.get("/test-places")
 def test_places(radius: float = 500):
     return get_nearby_restaurants(-37.8136, 144.9631, radius)
+
+
+def rank_restaurants_for_group(
+    restaurants: list[dict], radius: float, users: list[dict]
+):
+    open_and_distance = [
+        r
+        for r in restaurants
+        if r["open_now"] != False and r["distance_meters"] <= radius
+    ]
+
+    restaurants = [
+        r
+        for r in open_and_distance
+        if all(cuisine_matches(r, u["cuisines_ranked"]) for u in users)
+    ]
+
+    return restaurants if restaurants else open_and_distance
+
+
+def cuisine_matches(restaurant, ranked_cuisines):
+    lower_res = [str.lower(s) for s in restaurant["cuisines"]]
+    lower_ranked = [str.lower(s) for s in ranked_cuisines]
+    for res in lower_ranked:
+        if any(res in rc for rc in lower_res):
+            return True
+    return False
+
+
 # TODO (Day 4): Places API + Gemini reveal pipeline
