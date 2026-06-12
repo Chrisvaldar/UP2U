@@ -23,9 +23,12 @@ import redis
 import random
 import string
 import json
+import math
+import requests
 
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
 
 app = FastAPI(title="UP2U Learn")
 
@@ -189,7 +192,12 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
-        reveal = {"placeholder": "todo"}  # temp until Gemini
+        users = [{"name": name, **ans} for name, ans in session["answers"].items()]
+        radius = get_search_radius(users)
+
+        loc = [-37.8136, 144.9631]  # Melbourne until geocoding
+        restaurants = get_nearby_restaurants(loc[0], loc[1], radius)
+        reveal = generate_reveal(users, restaurants)  
         await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -209,5 +217,149 @@ async def websocket_endpoint(
         await manager.disconnect(session_code, websocket)
 
 
-# TODO (Day 3): ConnectionManager + WebSocket /ws/{code}/{name}
+# Place types that indicate a venue is NOT a restaurant we want to recommend
+INVALID_TYPES = {
+    "lodging",
+    "hotel",
+    "gym",
+    "supermarket",
+    "grocery_store",
+    "gas_station",
+    "pharmacy",
+    "hospital",
+    "school",
+    "bank",
+    "tourist_attraction",
+    "historical_landmark",
+    "shopping_mall",
+}
+
+# Generic types that appear on almost every place — not useful as cuisine tags
+GENERIC_TYPES = {
+    "restaurant",
+    "food",
+    "point_of_interest",
+    "establishment",
+    "store",
+    "food_store",
+}
+
+
+def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    R = 6371000  # Earth's radius in metres
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> list:
+    """
+    Filter and reshape raw Google Places API results into usable restaurant dicts.
+
+    Filters out:
+    - Non-restaurant venues (hotels, gyms, pharmacies, etc.)
+    - Places without any food-related type tag
+
+    Returns a list of dicts with consistent keys for the AI prompt.
+    """
+    cleaned = []
+    for place in raw_places:
+        types = place.get("types", [])
+
+        if any(t in INVALID_TYPES for t in types):
+            continue
+
+        if not any(
+            t in ["restaurant", "food", "cafe", "bar", "meal_takeaway"] for t in types
+        ):
+            continue
+
+        cleaned.append(
+            {
+                "name": place.get("displayName", {}).get("text", "Unknown"),
+                "rating": place.get("rating", 0),
+                "review_count": place.get("userRatingCount", 0),
+                "price_level": place.get("priceLevel", "Unknown"),
+                "address": place.get("formattedAddress", ""),
+                # Strip generic suffixes so cuisines read as e.g. "japanese" not "japanese_restaurant"
+                "cuisines": [
+                    t.replace("_restaurant", "").replace("_", " ")
+                    for t in types
+                    if t not in GENERIC_TYPES
+                ],
+                "summary": place.get("editorialSummary", {}).get("text", ""),
+                "open_now": place.get("regularOpeningHours", {}).get("openNow", None),
+                "maps_link": f"https://www.google.com/maps/place/?q=place_id:{place.get('id', '')}",
+                "distance_meters": int(
+                    haversine(
+                        user_lat,
+                        user_lng,
+                        place["location"]["latitude"],
+                        place["location"]["longitude"],
+                    )
+                ),
+            }
+        )
+    return cleaned
+
+TRAVEL_LIMITS = {
+    "short walk (<500m)": 500,
+    "public transport (<2km)": 2000,
+    "don't mind": 3000,
+}
+DEFAULT_TRAVEL_LIMIT = 500  # conservative fallback if answer missing
+
+
+def get_search_radius(users: list[dict]) -> float:
+    """How far the group is willing to travel — limited by the strictest person."""
+    limits = [
+        TRAVEL_LIMITS.get(u.get("travel_distance", ""), DEFAULT_TRAVEL_LIMIT)
+        for u in users
+    ]
+    return min(limits) if limits else DEFAULT_TRAVEL_LIMIT
+
+def get_nearby_restaurants(latitude: float, longitude: float, radius: float = 500) -> list:
+    """
+    Fetch and clean restaurants within 500m of the given coordinates.
+
+    Uses the Google Places API v1 (New) searchNearby endpoint.
+    Returns up to 20 results, filtered through clean_restaurants.
+    """
+    url = "https://places.googleapis.com/v1/places:searchNearby"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        # FieldMask tells the API exactly which fields to return.
+        # Only requesting what we need keeps the response small and avoids
+        # being billed for fields we don't use.
+        "X-Goog-FieldMask": (
+            "places.displayName,places.rating,places.userRatingCount,"
+            "places.priceLevel,places.formattedAddress,places.types,"
+            "places.regularOpeningHours,places.editorialSummary,"
+            "places.id,places.location"
+        ),
+    }
+    body = {
+        "includedTypes": ["restaurant"],
+        "maxResultCount": 20,
+        "locationRestriction": {
+            "circle": {
+                "center": {"latitude": latitude, "longitude": longitude},
+                "radius": radius,
+            }
+        },
+    }
+    response = requests.post(url, headers=headers, json=body)
+    raw = response.json().get("places", [])
+    restaurants = clean_restaurants(raw, latitude, longitude)
+    return [r for r in restaurants if r["distance_meters"] <= radius]
+
+@app.get("/test-places")
+def test_places(radius: float = 500):
+    return get_nearby_restaurants(-37.8136, 144.9631, radius)
 # TODO (Day 4): Places API + Gemini reveal pipeline
