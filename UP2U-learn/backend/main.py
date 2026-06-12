@@ -531,5 +531,29 @@ Return this exact JSON structure:
 
     return parse_reveal_response(raw)
 
-
-# TODO (Day 4): Places API + Gemini reveal pipeline
+@app.get("/test-reveal")
+def test_reveal():
+    """Smoke test for the full reveal pipeline with hardcoded users."""
+    users = [
+        {
+            "name": "Chris",
+            "hunger": 5,
+            "vibe": "quick",
+            "cuisines_ranked": ["japanese", "thai"],
+            "travel_distance": "short walk (<500m)",
+            "dietary": [],
+        },
+        {
+            "name": "Sarah",
+            "hunger": 2,
+            "vibe": "casual",
+            "cuisines_ranked": ["italian", "greek"],
+            "travel_distance": "don't mind",
+            "dietary": ["vegetarian"],
+        },
+    ]
+    radius = get_search_radius(users)
+    loc = [-37.8136, 144.9631]  # Melbourne until geocoding
+    restaurants = get_nearby_restaurants(loc[0], loc[1], radius)
+    shortlist = rank_restaurants_for_group(restaurants, radius, users)
+    return generate_reveal(users, shortlist)
