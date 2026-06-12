@@ -25,6 +25,7 @@ import string
 import json
 import math
 import requests
+from urllib.parse import quote
 from google import genai
 from google.genai.errors import ClientError, ServerError
 from groq import Groq, RateLimitError
@@ -197,9 +198,16 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
+        if not session["location"]:
+            r.setex(session_key(code), ttl_seconds, json.dumps(session))
+            return {"error": "Location not found"}
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]
-        loc = [-37.8136, 144.9631]  # Melbourne until geocoding
-        reveal = run_reveal_pipeline(users, loc[0], loc[1])
+        try:
+            lat, lng = geocode_location(session["location"])
+        except ValueError as e:
+            r.setex(session_key(code), ttl_seconds, json.dumps(session))
+            return {"error": str(e)}
+        reveal = run_reveal_pipeline(users, lat, lng)
         await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
 
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -556,3 +564,32 @@ def test_reveal():
         },
     ]
     return run_reveal_pipeline(users, -37.8136, 144.9631)
+
+def geocode_location(address: str) -> tuple[float, float]:
+    """
+    Convert a text address to (latitude, longitude) via Geocoding API v4.
+
+    v4 puts the address in the URL path and authenticates with X-Goog-Api-Key
+    (same header style as Places API). Coords live at results[0].location.
+    """
+    if not address or not address.strip():
+        raise ValueError("Address is required")
+
+    url = f"https://geocode.googleapis.com/v4/geocode/address/{quote(address)}"
+    response = requests.get(
+        url, headers={"X-Goog-Api-Key": GOOGLE_PLACES_API_KEY}
+    )
+    data = response.json()
+    results = data.get("results", [])
+    if not results:
+        raise ValueError(f"No geocoding results for: {address}")
+
+    location = results[0]["location"]
+    return location["latitude"], location["longitude"]
+
+
+@app.get("/test-geocode")
+def test_geocode(address: str = "Federation Square, Melbourne"):
+    lat, lng = geocode_location(address)
+    return {"address": address, "latitude": lat, "longitude": lng}
+
