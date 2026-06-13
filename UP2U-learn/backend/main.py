@@ -28,7 +28,8 @@ import requests
 from urllib.parse import quote
 from google import genai
 from google.genai.errors import ClientError, ServerError
-from groq import Groq, RateLimitError
+from groq import Groq
+import CORSMiddleware
 
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
@@ -37,6 +38,13 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 app = FastAPI(title="UP2U Learn")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class ConnectionManager:
@@ -429,9 +437,7 @@ def score_cuisine(restaurant: dict, ranked_cuisines: list[str]) -> int:
     return best_match
 
 
-def score_restaurant_for_person(
-    restaurant: dict, user: dict, radius: float
-) -> float:
+def score_restaurant_for_person(restaurant: dict, user: dict, radius: float) -> float:
     total = score_cuisine(restaurant, user["cuisines_ranked"])
 
     if radius > 0:
