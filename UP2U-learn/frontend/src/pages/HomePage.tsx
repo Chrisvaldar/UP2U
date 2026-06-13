@@ -15,14 +15,14 @@ export default function HomePage() {
     });
 
     const sessionCode = response.data.code;
-    navigate(`/lobby/${sessionCode}`);
+    navigate(`/lobby/${sessionCode}`, {state: {name}});
   }
   async function handleJoin() {
     await axios.post(`${API_BASE}/join-session/${code}`, {
       participant_name: name.trim(),
     });
 
-    navigate(`/lobby/${code}`);
+    navigate(`/lobby/${code}`, {state: {name}});
   }
 
 
