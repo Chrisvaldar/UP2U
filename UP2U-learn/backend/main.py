@@ -29,7 +29,7 @@ from urllib.parse import quote
 from google import genai
 from google.genai.errors import ClientError, ServerError
 from groq import Groq
-import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
