@@ -12,7 +12,7 @@ export default function Lobby() {
 
   useEffect(() => {
     async function get_session() {
-      const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`)
+      const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
       const session = await axios.get(`${API_BASE}/session/${code}`);
       const host = session["data"]["host"];
       setHost(host);
@@ -20,14 +20,13 @@ export default function Lobby() {
       setParticipants(participants);
 
       ws.onmessage = (event) => {
-        const message = JSON.parse(event.data)
-        if (message["type"] == "participant_joined"){
-          setParticipants(message["data"]["participants"])
+        const message = JSON.parse(event.data);
+        if (message["type"] == "participant_joined") {
+          setParticipants(message["data"]["participants"]);
+        } else if (message["type"] == "session_started") {
+          navigate(`/survey/${code}`);
         }
-        else if (message["type"] == "session_started"){
-          navigate(`/survey/${code}`)
-        }
-      }
+      };
     }
     get_session();
   }, []);
@@ -35,13 +34,15 @@ export default function Lobby() {
   return (
     <div>
       <h1>{code}</h1>
-
       <h2>Host: {host}</h2>
       <ul>
         {participants.map((p) => (
           <li key={p}> {p}</li>
         ))}
       </ul>
+      {name === host && participants.length >= 1 && (
+        <button>Start Session</button>
+      )}{" "}
     </div>
   );
 }
