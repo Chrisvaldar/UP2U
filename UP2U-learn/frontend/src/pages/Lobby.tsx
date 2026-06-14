@@ -8,6 +8,7 @@ export default function Lobby() {
   const name = useLocation().state?.name;
   const [host, setHost] = useState("");
   const [participants, setParticipants] = useState([]);
+  const [location, setLocation] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,6 +32,13 @@ export default function Lobby() {
     get_session();
   }, []);
 
+  async function handleStart() {
+    await axios.post(`${API_BASE}/start-session/${code}`, {
+      host_name: name.trim(),
+      location: location
+    });
+  }
+
   return (
     <div>
       <h1>{code}</h1>
@@ -41,7 +49,16 @@ export default function Lobby() {
         ))}
       </ul>
       {name === host && participants.length >= 1 && (
-        <button>Start Session</button>
+        <div>
+          <input
+            placeholder="Location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+          <button onClick={handleStart} disabled={location.trim() === ""}>
+            Start Session
+          </button>
+        </div>
       )}{" "}
     </div>
   );
