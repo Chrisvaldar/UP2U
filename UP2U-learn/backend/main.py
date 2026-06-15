@@ -30,6 +30,7 @@ from google import genai
 from google.genai.errors import ClientError, ServerError
 from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
@@ -215,9 +216,11 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
         except ValueError as e:
             r.setex(session_key(code), ttl_seconds, json.dumps(session))
             return {"error": str(e)}
-        reveal = run_reveal_pipeline(users, lat, lng)
-        await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
-
+        try:
+            reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
+            await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
+        except Exception:
+            pass
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
     return session
 
@@ -460,13 +463,16 @@ def _gemini_is_rate_limited(exc: Exception) -> bool:
 
 
 def call_gemini(system_prompt: str, user_prompt: str) -> str:
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        config={"system_instruction": system_prompt},
-        contents=user_prompt,
-    )
-    return response.text.strip()
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            config={"system_instruction": system_prompt},
+            contents=user_prompt,
+        )
+        return response.text.strip()
+    except Exception:
+        raise
 
 
 def call_groq(system_prompt: str, user_prompt: str) -> str:
@@ -569,12 +575,9 @@ Return this exact JSON structure:
 
     try:
         raw = call_gemini(system_prompt, user_prompt)
-        print(f"Gemini raw response: '{raw}'")
     except (ClientError, ServerError) as e:
         if _gemini_is_rate_limited(e) and GROQ_API_KEY:
-            print(f"Gemini rate limited ({e.code}), falling back to Groq")
             raw = call_groq(system_prompt, user_prompt)
-            print(f"Groq raw response: '{raw}'")
         else:
             raise
 
