@@ -77,6 +77,17 @@ export default function Survey() {
           <li key={p}> {p}</li>
         ))}
       </ol>
+
+      <h2>Travel Distance</h2>
+      <button onClick={() => setTravelDistance("short walk (<500m)")}>
+        short walk (&lt;500m)
+      </button>
+      <button onClick={() => setTravelDistance("public transport (<2km)")}>
+        public transport (&lt;2km)
+      </button>
+      <button onClick={() => setTravelDistance("don't mind")}>
+        don't mind
+      </button>
     </div>
   );
 }
