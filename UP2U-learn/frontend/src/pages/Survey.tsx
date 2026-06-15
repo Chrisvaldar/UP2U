@@ -38,6 +38,7 @@ export default function Survey() {
     <div>
       <h1>Survey</h1>
 
+      <h2>Hunger</h2>
       <input
         type="range"
         min="1"
@@ -46,6 +47,11 @@ export default function Survey() {
         value={hunger}
         onChange={(e) => setHunger(Number(e.target.value))}
       />
+
+      <h2>Vibe</h2>
+      <button onClick={() => setVibe("quick and ez")}>quick and ez</button>
+      <button onClick={() => setVibe("casual")}>casual</button>
+      <button onClick={() => setVibe("nice place")}>nice place</button>
     </div>
   );
 }
