@@ -16,6 +16,19 @@ export default function Survey() {
   const [dietary, setDietary] = useState<string[]>([]);
   const navigate = useNavigate();
 
+  async function handleSubmit() {
+    await axios.post(`${API_BASE}/submit-answers/${code}`, {
+      participant_name: name.trim(),
+      answers: {
+        "hunger": hunger,
+        "vibe": vibe,
+        "cuisines_ranked": cuisinesRanked,
+        "travel_distance": travelDistance,
+        "dietary": dietary
+      }
+    });
+  }
+
   useEffect(() => {
     async function load_survey() {
       const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
@@ -88,6 +101,30 @@ export default function Survey() {
       <button onClick={() => setTravelDistance("don't mind")}>
         don't mind
       </button>
+
+      <h2>Dietary</h2>
+      <div>
+        {["vegetarian", "vegan", "gluten-free", "halal", "kosher"].map((p) => (
+          <button
+            key={p}
+            onClick={() => {
+              if (!dietary.includes(p)) {
+                setDietary([...dietary, p]);
+              } else {
+                setDietary(dietary.filter((item) => item !== p));
+              }
+            }}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
+      <ul>
+        {dietary.map((p) => (
+          <li key={p}> {p}</li>
+        ))}
+      </ul>
     </div>
   );
 }
