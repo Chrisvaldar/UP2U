@@ -107,7 +107,7 @@ def create_session(request: CreateSessionRequest):
         "host": request.host_name,
         "status": "waiting",
         "location": None,
-        "participants": [],
+        "participants": [request.host_name],
         "answers": {},
     }
 

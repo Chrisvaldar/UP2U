@@ -32,6 +32,8 @@ export default function Survey() {
   useEffect(() => {
     async function load_survey() {
       const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
+      const session = await axios.get(`${API_BASE}/session/${code}`);
+      setTotal(session.data.participants.length);
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         if (message["type"] == "answer_submitted") {
@@ -125,6 +127,11 @@ export default function Survey() {
           <li key={p}> {p}</li>
         ))}
       </ul>
+
+      <button onClick={handleSubmit}>Submit</button>
+      <h3>
+        Submitted: {submitted.length}/{total}
+      </h3>
     </div>
   );
 }

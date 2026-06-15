@@ -48,7 +48,7 @@ export default function Lobby() {
           <li key={p}> {p}</li>
         ))}
       </ul>
-      {name === host && participants.length >= 1 && (
+      {name === host && participants.length > 1 && (
         <div>
           <input
             placeholder="Location"
