@@ -7,13 +7,13 @@ const API_BASE = "http://127.0.0.1:8000";
 export default function Survey() {
   const { code } = useParams();
   const name = useLocation().state?.name;
-  const [submitted, setSubmitted] = useState([]);
+  const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [hunger, setHunger] = useState(3);
   const [vibe, setVibe] = useState("");
-  const [cuisinesRanked, setCuisinesRanked] = useState([]);
+  const [cuisinesRanked, setCuisinesRanked] = useState<string[]>([]);
   const [travelDistance, setTravelDistance] = useState("");
-  const [dietary, setDietary] = useState([]);
+  const [dietary, setDietary] = useState<string[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,6 +52,31 @@ export default function Survey() {
       <button onClick={() => setVibe("quick and ez")}>quick and ez</button>
       <button onClick={() => setVibe("casual")}>casual</button>
       <button onClick={() => setVibe("nice place")}>nice place</button>
+
+      <h2>Cuisine</h2>
+
+      <div>
+        {["Chinese", "Italian", "Korean", "Indonesian", "Thai"]
+          .filter((p) => !cuisinesRanked.includes(p))
+          .map((p) => (
+            <button
+              key={p}
+              onClick={() => {
+                if (!cuisinesRanked.includes(p)) {
+                  setCuisinesRanked([...cuisinesRanked, p]);
+                }
+              }}
+            >
+              {p}
+            </button>
+          ))}
+      </div>
+
+      <ol>
+        {cuisinesRanked.map((p) => (
+          <li key={p}> {p}</li>
+        ))}
+      </ol>
     </div>
   );
 }
