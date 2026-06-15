@@ -34,5 +34,18 @@ export default function Survey() {
     load_survey();
   }, []);
 
-  return <div>Survey</div>;
+  return (
+    <div>
+      <h1>Survey</h1>
+
+      <input
+        type="range"
+        min="1"
+        max="5"
+        step="1"
+        value={hunger}
+        onChange={(e) => setHunger(Number(e.target.value))}
+      />
+    </div>
+  );
 }
