@@ -25,7 +25,7 @@ export default function Lobby() {
         if (message["type"] == "participant_joined") {
           setParticipants(message["data"]["participants"]);
         } else if (message["type"] == "session_started") {
-          navigate(`/survey/${code}`);
+          navigate(`/survey/${code}`, { state: { name } });
         }
       };
     }
