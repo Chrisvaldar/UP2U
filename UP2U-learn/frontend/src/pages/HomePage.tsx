@@ -11,24 +11,23 @@ export default function HomePage() {
 
   async function handleCreate() {
     const response = await axios.post(`${API_BASE}/create-session`, {
-      host_name: name.trim(),
+      host_name: name.trim()
     });
 
     const sessionCode = response.data.code;
-    navigate(`/lobby/${sessionCode}`, {state: {name}});
+    navigate(`/lobby/${sessionCode}`, { state: { name } });
   }
   async function handleJoin() {
     await axios.post(`${API_BASE}/join-session/${code}`, {
-      participant_name: name.trim(),
+      participant_name: name.trim()
     });
 
-    navigate(`/lobby/${code}`, {state: {name}});
+    navigate(`/lobby/${code}`, { state: { name } });
   }
-
 
   return (
     <div>
-      <h1>UP2U</h1>
+      <h1 className="text-3xl font-bold text-green-800">UP2U</h1>
 
       <input
         placeholder="your name"
