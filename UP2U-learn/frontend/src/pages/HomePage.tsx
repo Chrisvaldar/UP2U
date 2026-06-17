@@ -27,14 +27,16 @@ export default function HomePage() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-green-800">UP2U</h1>
+      <h1 className="text-3xl font-black text-green-800">UP2U</h1>
 
       <input
         placeholder="your name"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
-      <button onClick={handleCreate}>Create Session</button>
+      <button className="font-semibold" onClick={handleCreate}>
+        Create Session
+      </button>
 
       <input
         placeholder="code"
