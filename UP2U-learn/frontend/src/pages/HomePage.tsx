@@ -7,6 +7,7 @@ const API_BASE = "http://127.0.0.1:8000";
 export default function HomePage() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [screen, setScreen] = useState("landing");
   const navigate = useNavigate();
 
   async function handleCreate() {
@@ -29,21 +30,43 @@ export default function HomePage() {
     <div>
       <h1 className="text-3xl font-black text-green-800">UP2U</h1>
 
-      <input
-        placeholder="your name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
-      <button className="font-semibold" onClick={handleCreate}>
-        Create Session
-      </button>
+      {screen === "landing" && (
+        <div>
+          <button className="font-semibold" onClick={() => setScreen("create")}>
+            Create Session
+          </button>
+          <button className="font-semibold" onClick={() => setScreen("join")}>
+            Join Session
+          </button>
+        </div>
+      )}
 
-      <input
-        placeholder="code"
-        value={code}
-        onChange={(e) => setCode(e.target.value)}
-      />
-      <button onClick={handleJoin}>Join Session</button>
+      {screen === "create" && (
+        <div>
+          <input
+            placeholder="your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button onClick={handleCreate}>Create</button>
+        </div>
+      )}
+
+      {screen === "join" && (
+        <div>
+          <input
+            placeholder="your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            placeholder="code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <button onClick={handleJoin}>Join</button>
+        </div>
+      )}
     </div>
   );
 }
