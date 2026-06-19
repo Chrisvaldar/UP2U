@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Button from "../components/Button";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -14,15 +15,14 @@ export default function HomePage() {
     const response = await axios.post(`${API_BASE}/create-session`, {
       host_name: name.trim()
     });
-
     const sessionCode = response.data.code;
     navigate(`/lobby/${sessionCode}`, { state: { name } });
   }
+
   async function handleJoin() {
     await axios.post(`${API_BASE}/join-session/${code}`, {
       participant_name: name.trim()
     });
-
     navigate(`/lobby/${code}`, { state: { name } });
   }
 
@@ -32,18 +32,8 @@ export default function HomePage() {
 
       {screen === "landing" && (
         <div className="flex flex-col gap-4 text-xl">
-          <button
-            className="font-semibold bg-green-700 text-white px-6 py-3 rounded-full"
-            onClick={() => setScreen("create")}
-          >
-            Create Session
-          </button>
-          <button
-            className="font-semibold bg-green-700 text-white px-6 py-3 rounded-full"
-            onClick={() => setScreen("join")}
-          >
-            Join Session
-          </button>
+          <Button label="Create Session" onClick={() => setScreen("create")} />
+          <Button label="Join Session" onClick={() => setScreen("join")} />
         </div>
       )}
 
@@ -55,12 +45,7 @@ export default function HomePage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button
-            className="font-semibold bg-green-700 text-white px-1 py-2 rounded-full"
-            onClick={handleCreate}
-          >
-            Create
-          </button>
+          <Button label="Create" onClick={handleCreate} />
         </div>
       )}
 
@@ -78,12 +63,7 @@ export default function HomePage() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <button
-            className="font-semibold bg-green-700 text-white px-1 py-2 rounded-full"
-            onClick={handleJoin}
-          >
-            Join
-          </button>
+          <Button label="Join" onClick={handleJoin} />
         </div>
       )}
     </div>
