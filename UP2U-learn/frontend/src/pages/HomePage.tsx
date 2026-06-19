@@ -50,12 +50,13 @@ export default function HomePage() {
       {screen === "create" && (
         <div className="flex flex-col">
           <input
-            placeholder="your name"
+            className="border border-gray-300 rounded-full px-4 py-2 mb-4 outline-none"
+            placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <button
-            className="font-semibold bg-green-700 text-white px-1 py-1 rounded-full"
+            className="font-semibold bg-green-700 text-white px-1 py-2 rounded-full"
             onClick={handleCreate}
           >
             Create
@@ -66,16 +67,23 @@ export default function HomePage() {
       {screen === "join" && (
         <div className="flex flex-col">
           <input
-            placeholder="your name"
+            className="border border-gray-300 rounded-full px-4 py-2 mb-4 outline-none"
+            placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <input
-            placeholder="code"
+            className="border border-gray-300 rounded-full px-4 py-2 mb-4 outline-none"
+            placeholder="Session Code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
           />
-          <button onClick={handleJoin}>Join</button>
+          <button
+            className="font-semibold bg-green-700 text-white px-1 py-2 rounded-full"
+            onClick={handleJoin}
+          >
+            Join
+          </button>
         </div>
       )}
     </div>
