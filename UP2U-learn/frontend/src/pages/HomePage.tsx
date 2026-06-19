@@ -27,33 +27,44 @@ export default function HomePage() {
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-black text-green-800">UP2U</h1>
+    <div className="flex justify-center items-center h-screen flex-col">
+      <h1 className="text-8xl font-black text-green-800 mb-8">UP2U</h1>
 
       {screen === "landing" && (
-        <div>
-          <button className="font-semibold" onClick={() => setScreen("create")}>
+        <div className="flex flex-col gap-4 text-xl">
+          <button
+            className="font-semibold bg-green-700 text-white px-6 py-3 rounded-full"
+            onClick={() => setScreen("create")}
+          >
             Create Session
           </button>
-          <button className="font-semibold" onClick={() => setScreen("join")}>
+          <button
+            className="font-semibold bg-green-700 text-white px-6 py-3 rounded-full"
+            onClick={() => setScreen("join")}
+          >
             Join Session
           </button>
         </div>
       )}
 
       {screen === "create" && (
-        <div>
+        <div className="flex flex-col">
           <input
             placeholder="your name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button onClick={handleCreate}>Create</button>
+          <button
+            className="font-semibold bg-green-700 text-white px-1 py-1 rounded-full"
+            onClick={handleCreate}
+          >
+            Create
+          </button>
         </div>
       )}
 
       {screen === "join" && (
-        <div>
+        <div className="flex flex-col">
           <input
             placeholder="your name"
             value={name}
