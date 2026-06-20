@@ -11,6 +11,7 @@ export default function Lobby() {
   const [host, setHost] = useState("");
   const [participants, setParticipants] = useState([]);
   const [location, setLocation] = useState("");
+  const [dots, setDots] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,6 +33,10 @@ export default function Lobby() {
       };
     }
     get_session();
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length === 3 ? "." : prev + "."));
+    }, 750);
+    return () => clearInterval(interval);
   }, []);
 
   async function handleStart() {
@@ -75,7 +80,7 @@ export default function Lobby() {
         </div>
       )}{" "}
       {name !== host && (
-        <div className="mt-auto mb-8">Waiting for host to start...</div>
+        <div className="mt-auto mb-8">{`Waiting for host to start${dots}`}</div>
       )}{" "}
     </div>
   );
