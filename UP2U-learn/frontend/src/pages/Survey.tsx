@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import { Slider } from "@/components/ui/slider";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -53,17 +54,21 @@ export default function Survey() {
   }, []);
 
   return (
-    <div>
+    <div className="flex flex-col items-center justify-center h-screen">
       {step === 0 && (
-        <div>
-          <h2>How hungry are you right now? (1-5)</h2>
-          <input
-            type="range"
-            min="1"
-            max="5"
-            step="1"
-            value={hunger}
-            onChange={(e) => setHunger(Number(e.target.value))}
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            How hungry are you right now? (1-5)
+          </h2>
+          <div className="bg-green-100 text-green-800 text-center px-4 py-2 text-xl rounded-full">
+            {hunger}
+          </div>
+          <Slider
+            min={1}
+            max={5}
+            step={1}
+            value={[hunger]}
+            onValueChange={(val) => setHunger(val[0])}
           />
           <Button label="Next" onClick={() => setStep(step + 1)} />
         </div>
