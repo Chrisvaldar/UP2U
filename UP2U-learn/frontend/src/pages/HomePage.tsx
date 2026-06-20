@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
+import Input from "../components/Input";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -39,8 +40,7 @@ export default function HomePage() {
 
       {screen === "create" && (
         <div className="flex flex-col">
-          <input
-            className="border border-gray-300 rounded-full px-4 py-2 mb-4 outline-none"
+          <Input
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -51,14 +51,12 @@ export default function HomePage() {
 
       {screen === "join" && (
         <div className="flex flex-col">
-          <input
-            className="border border-gray-300 rounded-full px-4 py-2 mb-4 outline-none"
+          <Input
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <input
-            className="border border-gray-300 rounded-full px-4 py-2 mb-4 outline-none"
+          <Input
             placeholder="Session Code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
