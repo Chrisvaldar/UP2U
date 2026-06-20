@@ -44,7 +44,11 @@ export default function Lobby() {
   return (
     <div className="flex flex-col items-center h-screen pt-12">
       <h1 className="text-3xl font-black text-green-800">Session Code:</h1>
-      <h1 className="text-7xl font-black text-green-800 mb-8">{code}</h1>
+      <h1 className="text-7xl font-black text-green-800 mb-4">{code}</h1>
+      <h2 className="text-3xl font-black text-green-800 mb-12">
+        {" "}
+        Host: {host}
+      </h2>
       <div className="grid grid-cols-3 gap-4">
         {participants.map((p) => (
           <div
@@ -69,6 +73,9 @@ export default function Lobby() {
             disabled={location.trim() === ""}
           />
         </div>
+      )}{" "}
+      {name !== host && (
+        <div className="mt-auto mb-8">Waiting for host to start...</div>
       )}{" "}
     </div>
   );
