@@ -12,7 +12,7 @@ export default function Survey() {
   const name = useLocation().state?.name;
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
-  const [hunger, setHunger] = useState(3);
+  const [hunger, setHunger] = useState(1);
   const [vibe, setVibe] = useState("");
   const [cuisinesRanked, setCuisinesRanked] = useState<string[]>([]);
   const [travelDistance, setTravelDistance] = useState("");
