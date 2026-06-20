@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import Button from "../components/Button";
+import Input from "../components/Input";
 
 const API_BASE = "http://127.0.0.1:8000";
 export default function Lobby() {
@@ -40,24 +42,32 @@ export default function Lobby() {
   }
 
   return (
-    <div>
-      <h1>{code}</h1>
-      <h2>Host: {host}</h2>
-      <ul>
+    <div className="flex flex-col items-center h-screen pt-12">
+      <h1 className="text-3xl font-black text-green-800">Session Code:</h1>
+      <h1 className="text-7xl font-black text-green-800 mb-8">{code}</h1>
+      <div className="grid grid-cols-3 gap-4">
         {participants.map((p) => (
-          <li key={p}> {p}</li>
+          <div
+            className="bg-green-100 text-green-800 text-center px-4 py-2 mb-8 text-xl rounded-full"
+            key={p}
+          >
+            {" "}
+            {p}
+          </div>
         ))}
-      </ul>
+      </div>
       {name === host && participants.length > 1 && (
-        <div>
-          <input
+        <div className="flex gap-4 mt-auto mb-8 items-center justify-center">
+          <Input
             placeholder="Location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
           />
-          <button onClick={handleStart} disabled={location.trim() === ""}>
-            Start Session
-          </button>
+          <Button
+            label="Start Session"
+            onClick={handleStart}
+            disabled={location.trim() === ""}
+          />
         </div>
       )}{" "}
     </div>
