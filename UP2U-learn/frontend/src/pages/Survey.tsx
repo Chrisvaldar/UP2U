@@ -99,22 +99,24 @@ export default function Survey() {
         </div>
       )}
       {step === 2 && (
-        <div>
-          <h2>Cuisine</h2>
-          <div>
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            What kind of food are you feeling right now?
+          </h2>
+          <div className="flex flex-row gap-4">
             {["Chinese", "Italian", "Korean", "Indonesian", "Thai"]
               .filter((p) => !cuisinesRanked.includes(p))
               .map((p) => (
-                <button
+                <Button
+                  label={p}
+                  variant="outline"
                   key={p}
                   onClick={() => {
                     if (!cuisinesRanked.includes(p)) {
                       setCuisinesRanked([...cuisinesRanked, p]);
                     }
                   }}
-                >
-                  {p}
-                </button>
+                />
               ))}
           </div>
           <ol>
