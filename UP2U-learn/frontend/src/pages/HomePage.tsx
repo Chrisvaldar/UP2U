@@ -50,7 +50,7 @@ export default function HomePage() {
       )}
 
       {screen === "join" && (
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-4">
           <Input
             placeholder="Name"
             value={name}
