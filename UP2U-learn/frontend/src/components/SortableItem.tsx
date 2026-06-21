@@ -5,7 +5,7 @@ type SortableItemProps = {
   index: number;
 };
 
-export default function Sortable({ id, index }: SortableItemProps) {
+export default function SortableItem({ id, index }: SortableItemProps) {
   const { ref } = useSortable({ id, index });
 
   return (

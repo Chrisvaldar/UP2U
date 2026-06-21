@@ -4,6 +4,9 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { Slider } from "@/components/ui/slider";
+import SortableItem from "@/components/SortableItem";
+import { DragDropProvider } from "@dnd-kit/react";
+import { move } from "@dnd-kit/helpers";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -14,7 +17,13 @@ export default function Survey() {
   const [total, setTotal] = useState(0);
   const [hunger, setHunger] = useState(1);
   const [vibe, setVibe] = useState("");
-  const [cuisinesRanked, setCuisinesRanked] = useState<string[]>([]);
+  const [cuisinesRanked, setCuisinesRanked] = useState<string[]>([
+    "Chinese",
+    "Italian",
+    "Korean",
+    "Indonesian",
+    "Thai"
+  ]);
   const [travelDistance, setTravelDistance] = useState("");
   const [dietary, setDietary] = useState<string[]>([]);
   const [step, setStep] = useState(0);
@@ -103,27 +112,18 @@ export default function Survey() {
           <h2 className="text-3xl font-black text-green-800 mb-4">
             What kind of food are you feeling right now?
           </h2>
-          <div className="flex flex-row gap-4">
-            {["Chinese", "Italian", "Korean", "Indonesian", "Thai"]
-              .filter((p) => !cuisinesRanked.includes(p))
-              .map((p) => (
-                <Button
-                  label={p}
-                  variant="outline"
-                  key={p}
-                  onClick={() => {
-                    if (!cuisinesRanked.includes(p)) {
-                      setCuisinesRanked([...cuisinesRanked, p]);
-                    }
-                  }}
-                />
+          <DragDropProvider
+            onDragOver={(event) => {
+              setCuisinesRanked((prev) => move(prev, event));
+            }}
+          >
+            <div className="flex flex-col">
+              {cuisinesRanked.map((p, index) => (
+                <SortableItem id={p} index={index} key={p} />
               ))}
-          </div>
-          <ol>
-            {cuisinesRanked.map((p) => (
-              <li key={p}>{p}</li>
-            ))}
-          </ol>
+            </div>
+          </DragDropProvider>
+
           <Button label="Next" onClick={() => setStep(step + 1)} />
         </div>
       )}
