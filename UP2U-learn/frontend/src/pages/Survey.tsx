@@ -74,11 +74,16 @@ export default function Survey() {
         </div>
       )}
       {step === 1 && (
-        <div>
-          <h2>Vibe</h2>
-          <button onClick={() => setVibe("quick and ez")}>quick and ez</button>
-          <button onClick={() => setVibe("casual")}>casual</button>
-          <button onClick={() => setVibe("nice place")}>nice place</button>
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            What's the vibe you're looking for?
+          </h2>
+          <Button
+            label="Quick and ez"
+            onClick={() => setVibe("Quick and ez")}
+          />
+          <Button label="Casual" onClick={() => setVibe("Casual")} />
+          <Button label="Nice place" onClick={() => setVibe("Nice place")} />
           <Button label="Next" onClick={() => setStep(step + 1)} />
         </div>
       )}
