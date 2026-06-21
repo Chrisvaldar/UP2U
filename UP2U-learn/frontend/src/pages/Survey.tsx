@@ -78,12 +78,23 @@ export default function Survey() {
           <h2 className="text-3xl font-black text-green-800 mb-4">
             What's the vibe you're looking for?
           </h2>
-          <Button
-            label="Quick and ez"
-            onClick={() => setVibe("Quick and ez")}
-          />
-          <Button label="Casual" onClick={() => setVibe("Casual")} />
-          <Button label="Nice place" onClick={() => setVibe("Nice place")} />
+          <div className="flex flex-row gap-4">
+            <Button
+              variant={vibe === "Quick and ez" ? "solid" : "outline"}
+              label="Quick and ez"
+              onClick={() => setVibe("Quick and ez")}
+            />
+            <Button
+              variant={vibe === "Casual" ? "solid" : "outline"}
+              label="Casual"
+              onClick={() => setVibe("Casual")}
+            />
+            <Button
+              variant={vibe === "Nice place" ? "solid" : "outline"}
+              label="Nice place"
+              onClick={() => setVibe("Nice place")}
+            />
+          </div>
           <Button label="Next" onClick={() => setStep(step + 1)} />
         </div>
       )}
