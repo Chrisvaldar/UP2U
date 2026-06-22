@@ -128,17 +128,29 @@ export default function Survey() {
         </div>
       )}
       {step === 3 && (
-        <div>
-          <h2>Travel Distance</h2>
-          <button onClick={() => setTravelDistance("short walk (<500m)")}>
-            short walk (&lt;500m)
-          </button>
-          <button onClick={() => setTravelDistance("public transport (<2km)")}>
-            public transport (&lt;2km)
-          </button>
-          <button onClick={() => setTravelDistance("don't mind")}>
-            don't mind
-          </button>
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            What kind of travel are we comfortable with?
+          </h2>
+          <Button
+            variant={
+              travelDistance === "Short walk (<500m)" ? "solid" : "outline"
+            }
+            label="Short walk (<500m)"
+            onClick={() => setTravelDistance("Short walk (<500m)")}
+          />
+          <Button
+            variant={
+              travelDistance === "Public transport (<2km)" ? "solid" : "outline"
+            }
+            label="Public transport (<2km)"
+            onClick={() => setTravelDistance("Public transport (<2km)")}
+          />
+          <Button
+            variant={travelDistance === "Don't mind" ? "solid" : "outline"}
+            label="Don't mind"
+            onClick={() => setTravelDistance("Ddon't mind")}
+          />
           <Button label="Next" onClick={() => setStep(step + 1)} />
         </div>
       )}
