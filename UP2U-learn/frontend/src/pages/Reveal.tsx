@@ -5,33 +5,49 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 export default function Reveal() {
   const name = useLocation().state?.name;
   const reveal = useLocation().state?.reveal;
+  const [step, setStep] = useState(0);
 
+  const slides = [
+    ...Object.entries(reveal.personality_lines).map(([person, line]) => ({
+      type: "personality",
+      person,
+      line
+    })),
+    { type: "agreements" },
+    { type: "conflicts" },
+    { type: "restaurants" }
+  ];
+
+  const currentSlide = slides[step] as any;
+
+  useEffect(() => {
+    if (slides[step]?.type === "restaurants") return;
+
+    const timer = setTimeout(() => {
+      setStep(step + 1);
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [step]);
   return (
-    <div>
-      <h1>Reveal</h1>
-
-      <h2>{reveal.agreements}</h2>
-      <h2>{reveal.conflicts}</h2>
-      {Object.entries(reveal.personality_lines).map(([personName, line]) => (
-        <h2 key={[personName, line]}>
-          {personName}: {line}
-        </h2>
-      ))}
-
-      <h1>Decision:</h1>
-      <h2>
-        {reveal.primary.name}: {reveal.primary.reason}
-      </h2>
-      <a target="_blank" href={reveal.primary.maps_link}>
-        Open in Maps
-      </a>
-
-      <h1>Other Options:</h1>
-      {reveal.backups.map(({ name, reason }) => (
-        <h2 key={name}>
-          {name}: {reason}
-        </h2>
-      ))}
+    <div className="flex flex-col items-center justify-center h-screen">
+      {currentSlide.type === "personality" && (
+        <div>
+          <h2 className="text-3xl font-black text-green-800">
+            {currentSlide.person}: {currentSlide.line}
+          </h2>
+        </div>
+      )}
+      {currentSlide.type === "agreements" && (
+        <div>
+          <h2>{reveal.agreements}</h2>
+        </div>
+      )}
+      {currentSlide.type === "conflicts" && (
+        <div>
+          <h2>{reveal.conflicts}</h2>
+        </div>
+      )}
     </div>
   );
 }
