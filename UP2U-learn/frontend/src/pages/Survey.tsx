@@ -28,7 +28,23 @@ export default function Survey() {
   const [dietary, setDietary] = useState<string[]>([]);
   const [step, setStep] = useState(0);
   const [dots, setDots] = useState("");
+  const [messageIndex, setMessageIndex] = useState(0);
   const navigate = useNavigate();
+
+  const loadingMessages = [
+    "Finding nearby restaurants.",
+    "Finding nearby restaurants..",
+    "Finding nearby restaurants...",
+    "Analysing your group's vibe.",
+    "Analysing your group's vibe..",
+    "Analysing your group's vibe...",
+    "Consulting the food gods.",
+    "Consulting the food gods..",
+    "Consulting the food gods...",
+    "Almost there.",
+    "Almost there..",
+    "Almost there..."
+  ];
 
   async function handleSubmit() {
     await axios.post(`${API_BASE}/submit-answers/${code}`, {
@@ -41,7 +57,11 @@ export default function Survey() {
         "dietary": dietary.map((d) => d.toLowerCase())
       }
     });
-    setStep(5);
+    if (submitted.length + 1 >= total) {
+      setStep(6);
+    } else {
+      setStep(5);
+    }
   }
 
   useEffect(() => {
@@ -52,8 +72,13 @@ export default function Survey() {
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
         if (message["type"] == "answer_submitted") {
-          setSubmitted(message["data"]["submitted"]);
-          setTotal(message["data"]["total"]);
+          const newSubmitted = message["data"]["submitted"];
+          const newTotal = message["data"]["total"];
+          setSubmitted(newSubmitted);
+          setTotal(newTotal);
+          if (newSubmitted.length === newTotal) {
+            setStep(6);
+          }
         } else if (message["type"] == "reveal_ready") {
           navigate(`/reveal/${code}`, {
             state: { name, reveal: message.data }
@@ -67,6 +92,15 @@ export default function Survey() {
     }, 750);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (step === 6) {
+      const interval = setInterval(() => {
+        setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+      }, 600);
+      return () => clearInterval(interval);
+    }
+  }, [step]);
 
   return (
     <div className="flex flex-col items-center justify-center h-screen">
@@ -199,9 +233,16 @@ export default function Survey() {
           <h2 className="text-3xl font-black text-green-800 mb-4">
             {`Waiting for others to submit${dots}`}
           </h2>
-          <h3 className="mt-4">
+          <h3>
             Submitted: {submitted.length}/{total}
           </h3>
+        </div>
+      )}
+      {step === 6 && (
+        <div className="bg-green-700 h-screen w-screen flex items-center justify-center">
+          <h2 className="text-3xl font-black text-white mb-4">
+            {loadingMessages[messageIndex]}
+          </h2>
         </div>
       )}
     </div>
