@@ -27,6 +27,7 @@ export default function Survey() {
   const [travelDistance, setTravelDistance] = useState("");
   const [dietary, setDietary] = useState<string[]>([]);
   const [step, setStep] = useState(0);
+  const [dots, setDots] = useState("");
   const navigate = useNavigate();
 
   async function handleSubmit() {
@@ -34,12 +35,13 @@ export default function Survey() {
       participant_name: name.trim(),
       answers: {
         "hunger": hunger,
-        "vibe": vibe,
-        "cuisines_ranked": cuisinesRanked,
-        "travel_distance": travelDistance,
-        "dietary": dietary
+        "vibe": vibe.toLowerCase(),
+        "cuisines_ranked": cuisinesRanked.map((c) => c.toLowerCase()),
+        "travel_distance": travelDistance.toLowerCase(),
+        "dietary": dietary.map((d) => d.toLowerCase())
       }
     });
+    setStep(5);
   }
 
   useEffect(() => {
@@ -60,6 +62,10 @@ export default function Survey() {
       };
     }
     load_survey();
+    const interval = setInterval(() => {
+      setDots((prev) => (prev.length === 3 ? "." : prev + "."));
+    }, 750);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -154,7 +160,7 @@ export default function Survey() {
             <Button
               variant={travelDistance === "Don't mind" ? "solid" : "outline"}
               label="Don't mind"
-              onClick={() => setTravelDistance("Ddon't mind")}
+              onClick={() => setTravelDistance("Don't mind")}
             />
           </div>
           {travelDistance !== "" && (
@@ -186,15 +192,17 @@ export default function Survey() {
             )}
           </div>
           <Button label="Submit" onClick={handleSubmit} />
-          <h3>
+        </div>
+      )}
+      {step === 5 && (
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            {`Waiting for others to submit${dots}`}
+          </h2>
+          <h3 className="mt-4">
             Submitted: {submitted.length}/{total}
           </h3>
         </div>
-      )}
-      {submitted.length > 0 && (
-        <h3>
-          Submitted: {submitted.length}/{total}
-        </h3>
       )}
     </div>
   );
