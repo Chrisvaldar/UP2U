@@ -163,13 +163,17 @@ export default function Survey() {
         </div>
       )}
       {step === 4 && (
-        <div>
-          <h2>Dietary</h2>
-          <div>
-            {["vegetarian", "vegan", "gluten-free", "halal", "kosher"].map(
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            Any dietary requirements? (Multi-select)
+          </h2>
+          <div className="flex flex-row gap-4">
+            {["Vegetarian", "Vegan", "Gluten-free", "Halal", "Kosher"].map(
               (p) => (
-                <button
+                <Button
                   key={p}
+                  label={p}
+                  variant={dietary.includes(p) ? "solid" : "outline"}
                   onClick={() => {
                     if (!dietary.includes(p)) {
                       setDietary([...dietary, p]);
@@ -177,13 +181,14 @@ export default function Survey() {
                       setDietary(dietary.filter((item) => item !== p));
                     }
                   }}
-                >
-                  {p}
-                </button>
+                />
               )
             )}
           </div>
           <Button label="Submit" onClick={handleSubmit} />
+          <h3>
+            Submitted: {submitted.length}/{total}
+          </h3>
         </div>
       )}
       {submitted.length > 0 && (
