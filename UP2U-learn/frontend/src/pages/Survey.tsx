@@ -104,7 +104,9 @@ export default function Survey() {
               onClick={() => setVibe("Nice place")}
             />
           </div>
-          <Button label="Next" onClick={() => setStep(step + 1)} />
+          {vibe !== "" && (
+            <Button label="Next" onClick={() => setStep(step + 1)} />
+          )}
         </div>
       )}
       {step === 2 && (
@@ -132,26 +134,32 @@ export default function Survey() {
           <h2 className="text-3xl font-black text-green-800 mb-4">
             What kind of travel are we comfortable with?
           </h2>
-          <Button
-            variant={
-              travelDistance === "Short walk (<500m)" ? "solid" : "outline"
-            }
-            label="Short walk (<500m)"
-            onClick={() => setTravelDistance("Short walk (<500m)")}
-          />
-          <Button
-            variant={
-              travelDistance === "Public transport (<2km)" ? "solid" : "outline"
-            }
-            label="Public transport (<2km)"
-            onClick={() => setTravelDistance("Public transport (<2km)")}
-          />
-          <Button
-            variant={travelDistance === "Don't mind" ? "solid" : "outline"}
-            label="Don't mind"
-            onClick={() => setTravelDistance("Ddon't mind")}
-          />
-          <Button label="Next" onClick={() => setStep(step + 1)} />
+          <div className="flex flex-row gap-4">
+            <Button
+              variant={
+                travelDistance === "Short walk (<500m)" ? "solid" : "outline"
+              }
+              label="Short walk (<500m)"
+              onClick={() => setTravelDistance("Short walk (<500m)")}
+            />
+            <Button
+              variant={
+                travelDistance === "Public transport (<2km)"
+                  ? "solid"
+                  : "outline"
+              }
+              label="Public transport (<2km)"
+              onClick={() => setTravelDistance("Public transport (<2km)")}
+            />
+            <Button
+              variant={travelDistance === "Don't mind" ? "solid" : "outline"}
+              label="Don't mind"
+              onClick={() => setTravelDistance("Ddon't mind")}
+            />
+          </div>
+          {travelDistance !== "" && (
+            <Button label="Next" onClick={() => setStep(step + 1)} />
+          )}
         </div>
       )}
       {step === 4 && (
