@@ -570,7 +570,7 @@ Return this exact JSON structure:
   "agreements": "...",
   "conflicts": "...",
   "primary": {{"name": "...", "reason": "...", "maps_link": "..."}},
-  "backups": [{{"name": "...", "reason": "..."}}]
+  "backups": [{{"name": "...", "reason": "...", "maps_link": "..."}}]
 }}"""
 
     try:
