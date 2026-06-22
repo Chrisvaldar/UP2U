@@ -56,22 +56,35 @@ export default function Reveal() {
         </div>
       )}
       {currentSlide.type === "restaurants" && (
-        <div>
-          <div className="overflow-hidden w-full" ref={emblaRef}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="overflow-hidden w-full p-4" ref={emblaRef}>
             <div className="flex w-full">
               {[reveal.primary, ...reveal.backups].map((restaurant, index) => (
-                <div key={index} className="flex-[0_0_100%] min-w-0">
-                  <h2>{restaurant.name}</h2>
-                  <p>{restaurant.reason}</p>
-                  <a href={restaurant.maps_link} target="_blank">
-                    Open in Maps
-                  </a>
+                <div
+                  key={index}
+                  className="flex-[0_0_100%] min-w-0 flex justify-center"
+                >
+                  <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full flex flex-col gap-4">
+                    <h2 className="text-2xl font-black text-green-800">
+                      {restaurant.name}
+                    </h2>
+                    <p className="text-gray-600">{restaurant.reason}</p>
+                    <a
+                      href={restaurant.maps_link}
+                      target="_blank"
+                      className="text-green-700 font-semibold underline"
+                    >
+                      Open in Maps
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-          <Button label="Prev" onClick={() => emblaApi?.scrollPrev()} />
-          <Button label="Next" onClick={() => emblaApi?.scrollNext()} />
+          <div className="flex gap-4">
+            <Button label="←" onClick={() => emblaApi?.scrollPrev()} />
+            <Button label="→" onClick={() => emblaApi?.scrollNext()} />
+          </div>
         </div>
       )}
     </div>
