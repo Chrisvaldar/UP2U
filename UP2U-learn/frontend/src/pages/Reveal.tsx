@@ -35,10 +35,11 @@ export default function Reveal() {
   return (
     <div className="flex flex-col items-center justify-center h-screen">
       {currentSlide.type === "personality" && (
-        <div>
-          <h2 className="text-3xl font-black text-green-800">
-            {currentSlide.person}: {currentSlide.line}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h2 className="text-4xl font-black text-green-800">
+            {currentSlide.person}
           </h2>
+          <p className="text-xl text-gray-600">{currentSlide.line}</p>
         </div>
       )}
       {currentSlide.type === "agreements" && (
