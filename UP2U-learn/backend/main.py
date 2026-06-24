@@ -343,6 +343,7 @@ def get_search_radius(users: list[dict]) -> float:
         TRAVEL_LIMITS.get(u.get("travel_distance", ""), DEFAULT_TRAVEL_LIMIT)
         for u in users
     ]
+    print(min(limits))
     return min(limits) if limits else DEFAULT_TRAVEL_LIMIT
 
 
@@ -382,7 +383,8 @@ def get_nearby_restaurants(
     response = requests.post(url, headers=headers, json=body)
     raw = response.json().get("places", [])
     restaurants = clean_restaurants(raw, latitude, longitude)
-    return [r for r in restaurants if r["distance_meters"] <= radius]
+    print(restaurants)
+    return restaurants
 
 
 @app.get("/test-places")
@@ -393,31 +395,29 @@ def test_places(radius: float = 500):
 def rank_restaurants_for_group(
     restaurants: list[dict], radius: float, users: list[dict]
 ):
-    open_and_distance = [
-        r
-        for r in restaurants
-        if r["open_now"] != False and r["distance_meters"] <= radius
-    ]
+    open_and_distance = [r for r in restaurants if r["open_now"] != False]
 
     filtered = [
         r
         for r in open_and_distance
         if all(cuisine_matches(r, u["cuisines_ranked"]) for u in users)
     ]
-    if not filtered:
+    if len(filtered) < 3:
         filtered = open_and_distance
 
     for r in filtered:
         r["_group_score"] = score_restaurant_for_group(r, users, radius)
+
+    print(sorted(filtered, key=lambda r: r["_group_score"], reverse=True))
 
     return sorted(filtered, key=lambda r: r["_group_score"], reverse=True)
 
 
 def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) -> dict:
     radius = get_search_radius(users)
-    restaurants = get_nearby_restaurants(latitude, longitude, radius)
+    restaurants = get_nearby_restaurants(latitude, longitude, 2000)
     shortlist = rank_restaurants_for_group(restaurants, radius, users)
-    return generate_reveal(users, shortlist)
+    return generate_reveal(users, shortlist, radius)
 
 
 def cuisine_matches(restaurant, ranked_cuisines):
@@ -495,8 +495,8 @@ def parse_reveal_response(raw: str) -> dict:
     return json.loads(raw.strip())
 
 
-def generate_reveal(users: list[dict], restaurants: list[dict]):
-    restaurants = restaurants[:6]
+def generate_reveal(users: list[dict], restaurants: list[dict], strict_radius: int):
+    restaurants = restaurants[:15]
 
     # Format user preferences as a readable block for the prompt
     preferences_text = "\n".join(
@@ -555,6 +555,10 @@ Rules for backup reasons:
 
 Other rules:
 - Respect dietary restrictions strictly, never recommend somewhere a person can't eat
+- Never recommend the same restaurant more than once
+- The primary must be within the strict tradeoff. Backups may exceed this but should explain the tradeoff in their reason. 
+    Example scenario: Restaurant A is the correct cuisine but 500m farther than the agreed distance or Restaurant B is within distance, 
+    but it is the the second or third highest rated cuisine instead of first
 - Prefer open, highly rated, highly reviewed places
 - Return ONLY valid JSON, no explanation, no markdown backticks"""
 
@@ -563,6 +567,9 @@ Other rules:
 
 Restaurants:
 {restaurants_text}
+
+Strict radius:
+{strict_radius}
 
 Return this exact JSON structure:
 {{
@@ -580,7 +587,7 @@ Return this exact JSON structure:
             raw = call_groq(system_prompt, user_prompt)
         else:
             raise
-
+    print(raw)
     return parse_reveal_response(raw)
 
 
