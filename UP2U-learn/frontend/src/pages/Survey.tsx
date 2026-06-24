@@ -80,6 +80,7 @@ export default function Survey() {
             setStep(6);
           }
         } else if (message["type"] == "reveal_ready") {
+          console.log("reveal data:", message.data);
           navigate(`/reveal/${code}`, {
             state: { name, reveal: message.data }
           });
