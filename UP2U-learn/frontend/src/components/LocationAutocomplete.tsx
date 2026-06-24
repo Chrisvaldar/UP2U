@@ -23,6 +23,7 @@ export const LocationAutocomplete = ({ onPlaceSelect }: Props) => {
   return (
     <div className="autocomplete-container">
       <gmp-place-autocomplete
+        placeholder="Enter location here"
         ongmp-select={(event: google.maps.places.PlacePredictionSelectEvent) =>
           void handlePlaceSelect(event.placePrediction.toPlace())
         }

@@ -81,7 +81,8 @@ class JoinSessionRequest(BaseModel):
 
 class StartSessionRequest(BaseModel):
     host_name: str
-    location: str
+    lat: float
+    lng: float
 
 
 class SubmitAnswersRequest(BaseModel):
@@ -161,7 +162,8 @@ async def start_session(request: StartSessionRequest, code: str):
 
     if request.host_name == session["host"]:
         session["status"] = "active"
-        session["location"] = request.location
+        session["lat"] = request.lat
+        session["lng"] = request.lng
 
         r.setex(session_key(code), ttl_seconds, json.dumps(session))
         await manager.broadcast(
@@ -170,7 +172,8 @@ async def start_session(request: StartSessionRequest, code: str):
                 "type": "session_started",
                 "data": {
                     "host": request.host_name,
-                    "location": request.location,
+                    "lat": request.lat,
+                    "lng": request.lng,
                     "participants": session["participants"],
                 },
             },
@@ -207,15 +210,9 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
-        if not session["location"]:
-            r.setex(session_key(code), ttl_seconds, json.dumps(session))
-            return {"error": "Location not found"}
+        lat = session["lat"]
+        lng = session["lng"]
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]
-        try:
-            lat, lng = geocode_location(session["location"])
-        except ValueError as e:
-            r.setex(session_key(code), ttl_seconds, json.dumps(session))
-            return {"error": str(e)}
         try:
             reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
             await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})

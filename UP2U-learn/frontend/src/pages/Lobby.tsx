@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
-import Input from "../components/Input";
+import { LocationAutocomplete } from "../components/LocationAutocomplete";
 
 const API_BASE = "http://127.0.0.1:8000";
 export default function Lobby() {
@@ -10,7 +10,8 @@ export default function Lobby() {
   const name = useLocation().state?.name;
   const [host, setHost] = useState("");
   const [participants, setParticipants] = useState([]);
-  const [location, setLocation] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [dots, setDots] = useState("");
   const navigate = useNavigate();
 
@@ -42,7 +43,8 @@ export default function Lobby() {
   async function handleStart() {
     await axios.post(`${API_BASE}/start-session/${code}`, {
       host_name: name.trim(),
-      location: location
+      lat,
+      lng
     });
   }
 
@@ -54,6 +56,23 @@ export default function Lobby() {
         {" "}
         Host: {host}
       </h2>
+      {name === host && participants.length > 1 && (
+        <div className="flex gap-4 mb-12 items-center justify-center">
+          <LocationAutocomplete
+            onPlaceSelect={(place) => {
+              if (place?.location) {
+                setLat(place.location.lat());
+                setLng(place.location.lng());
+              }
+            }}
+          />
+          <Button
+            label="Start Session"
+            onClick={handleStart}
+            disabled={lat === null || lng === null}
+          />
+        </div>
+      )}{" "}
       <div className="grid grid-cols-3 gap-4">
         {participants.map((p) => (
           <div
@@ -65,20 +84,6 @@ export default function Lobby() {
           </div>
         ))}
       </div>
-      {name === host && participants.length > 1 && (
-        <div className="flex gap-4 mt-auto mb-8 items-center justify-center">
-          <Input
-            placeholder="Location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
-          <Button
-            label="Start Session"
-            onClick={handleStart}
-            disabled={location.trim() === ""}
-          />
-        </div>
-      )}{" "}
       {name !== host && (
         <div className="mt-auto mb-8">{`Waiting for host to start${dots}`}</div>
       )}{" "}
