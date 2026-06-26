@@ -1,14 +1,37 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useLocation } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import Button from "../components/Button";
 
+type Restaurant = {
+  name: string;
+  reason: string;
+  maps_link: string;
+};
+
+type RevealData = {
+  personality_lines: Record<string, string>;
+  agreements: string;
+  conflicts: string;
+  primary: Restaurant;
+  backups: Restaurant[];
+};
+
 export default function Reveal() {
-  const name = useLocation().state?.name;
-  const reveal = useLocation().state?.reveal;
+  const reveal = (useLocation().state as { reveal?: RevealData } | null)?.reveal;
   const [step, setStep] = useState(0);
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
+
+  if (!reveal) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-4 text-center px-6">
+        <h1 className="text-3xl font-black text-green-800">Reveal unavailable</h1>
+        <p className="text-gray-600">
+          This page needs the live reveal event. Rejoin the session to see the result.
+        </p>
+      </div>
+    );
+  }
 
   const slides = [
     ...Object.entries(reveal.personality_lines).map(([person, line]) => ({
