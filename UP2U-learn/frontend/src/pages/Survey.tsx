@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
-import Input from "../components/Input";
 import { Slider } from "@/components/ui/slider";
 import SortableItem from "@/components/SortableItem";
 import { DragDropProvider } from "@dnd-kit/react";
@@ -12,7 +11,7 @@ const API_BASE = "http://127.0.0.1:8000";
 
 export default function Survey() {
   const { code } = useParams();
-  const name = useLocation().state?.name;
+  const name = useLocation().state?.name ?? "";
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [hunger, setHunger] = useState(1);
@@ -29,6 +28,8 @@ export default function Survey() {
   const [step, setStep] = useState(0);
   const [dots, setDots] = useState("");
   const [messageIndex, setMessageIndex] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const loadingMessages = [
@@ -47,48 +48,98 @@ export default function Survey() {
   ];
 
   async function handleSubmit() {
-    await axios.post(`${API_BASE}/submit-answers/${code}`, {
-      participant_name: name.trim(),
-      answers: {
-        "hunger": hunger,
-        "vibe": vibe.toLowerCase(),
-        "cuisines_ranked": cuisinesRanked.map((c) => c.toLowerCase()),
-        "travel_distance": travelDistance.toLowerCase(),
-        "dietary": dietary.map((d) => d.toLowerCase())
+    if (!code || !name) {
+      setError("Missing session details. Go back and join again.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await axios.post(`${API_BASE}/submit-answers/${code}`, {
+        participant_name: name.trim(),
+        answers: {
+          "hunger": hunger,
+          "vibe": vibe.toLowerCase(),
+          "cuisines_ranked": cuisinesRanked.map((c) => c.toLowerCase()),
+          "travel_distance": travelDistance.toLowerCase(),
+          "dietary": dietary.map((d) => d.toLowerCase())
+        }
+      });
+      if (response.data?.error) {
+        setError(response.data.error);
+        return;
       }
-    });
-    if (submitted.length + 1 >= total) {
-      setStep(6);
-    } else {
-      setStep(5);
+
+      if (submitted.length + 1 >= total) {
+        setStep(6);
+      } else {
+        setStep(5);
+      }
+    } catch {
+      setError("Could not submit your answers. Try again.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   useEffect(() => {
+    let cancelled = false;
+    let ws: WebSocket | undefined;
+
     async function load_survey() {
-      const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
-      const session = await axios.get(`${API_BASE}/session/${code}`);
-      setTotal(session.data.participants.length);
-      ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message["type"] == "answer_submitted") {
-          const newSubmitted = message["data"]["submitted"];
-          const newTotal = message["data"]["total"];
-          setSubmitted(newSubmitted);
-          setTotal(newTotal);
-          if (newSubmitted.length === newTotal) {
-            setStep(6);
-          }
-        } else if (message["type"] == "reveal_ready") {
-          console.log("reveal data:", message.data);
-          navigate(`/reveal/${code}`, {
-            state: { name, reveal: message.data }
-          });
+      if (!code || !name) {
+        setError("Missing session details. Go back and join again.");
+        return;
+      }
+
+      try {
+        const session = await axios.get(`${API_BASE}/session/${code}`);
+        if (cancelled) return;
+        if (session.data?.error) {
+          setError("Session not found. Check the code and try again.");
+          return;
         }
-      };
+
+        setTotal(session.data.participants.length);
+
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
+        ws.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          if (message["type"] == "answer_submitted") {
+            const newSubmitted = message["data"]["submitted"];
+            const newTotal = message["data"]["total"];
+            setSubmitted(newSubmitted);
+            setTotal(newTotal);
+            if (newSubmitted.length === newTotal) {
+              setStep(6);
+            }
+          } else if (message["type"] == "reveal_ready") {
+            navigate(`/reveal/${code}`, {
+              state: { name, reveal: message.data }
+            });
+          }
+        };
+        ws.onerror = () => {
+          setError("Lost the live survey connection. Refresh to reconnect.");
+        };
+      } catch {
+        if (!cancelled) {
+          setError("Could not load the survey. Check that the backend is running.");
+        }
+      }
     }
     load_survey();
+    // Close the socket on page exit so remounts do not leave duplicate listeners.
+    return () => {
+      cancelled = true;
+      ws?.close();
+    };
+  }, [code, name, navigate]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
+      // Functional state keeps the interval independent of stale render values.
       setDots((prev) => (prev.length === 3 ? "." : prev + "."));
     }, 750);
     return () => clearInterval(interval);
@@ -97,6 +148,7 @@ export default function Survey() {
   useEffect(() => {
     if (step === 6) {
       const interval = setInterval(() => {
+        // Functional state keeps the interval independent of stale render values.
         setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
       }, 600);
       return () => clearInterval(interval);
@@ -226,9 +278,15 @@ export default function Survey() {
               )
             )}
           </div>
-          <Button label="Submit" onClick={handleSubmit} />
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <Button
+            label={submitting ? "Submitting..." : "Submit"}
+            onClick={handleSubmit}
+            disabled={submitting}
+          />
         </div>
       )}
+      {error && step !== 4 && <p className="text-red-600 text-sm mt-6">{error}</p>}
       {step === 5 && (
         <div className="flex flex-col items-center gap-6">
           <h2 className="text-3xl font-black text-green-800 mb-4">
