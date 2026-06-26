@@ -214,5 +214,6 @@ __pycache__/
 
 # Local agent notes — not for the repo
 LEARNING_PLAN.md
+PROJECT_HANDOFF.md
 node_modules/
 .vite/
