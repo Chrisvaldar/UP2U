@@ -133,6 +133,7 @@ async def join_session(request: JoinSessionRequest, code: str):
         return {"error": "session not found"}
 
     session = json.loads(data)
+    # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = r.ttl(session_key(code))
 
     session["participants"].append(request.participant_name)
@@ -165,6 +166,7 @@ async def start_session(request: StartSessionRequest, code: str):
         session["lat"] = request.lat
         session["lng"] = request.lng
 
+        # Preserve the original expiry so normal activity does not extend a session.
         r.setex(session_key(code), ttl_seconds, json.dumps(session))
         await manager.broadcast(
             code,
@@ -190,6 +192,7 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
         return {"error": "session not found"}
 
     session = json.loads(data)
+    # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = r.ttl(session_key(code))
 
     if request.participant_name not in session["participants"]:
@@ -214,6 +217,7 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
         lng = session["lng"]
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]
         try:
+            # The reveal pipeline performs blocking HTTP/AI calls; keep the event loop responsive.
             reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
             await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
         except Exception:
@@ -232,6 +236,7 @@ async def websocket_endpoint(
         while True:
             await websocket.receive_text()
     except:
+        # Drop the socket from the session pool when the client disconnects or the loop exits.
         await manager.disconnect(session_code, websocket)
 
 
