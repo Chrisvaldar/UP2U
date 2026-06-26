@@ -7,11 +7,11 @@ import SortableItem from "@/components/SortableItem";
 import { DragDropProvider } from "@dnd-kit/react";
 import { move } from "@dnd-kit/helpers";
 import { API_BASE, WS_BASE } from "@/lib/config";
-import { getParticipantName, saveReveal } from "@/lib/session";
+import { getParticipantName, saveReveal, setFlashMessage } from "@/lib/session";
 
 export default function Survey() {
   const { code } = useParams();
-  const name = useLocation().state?.name ?? getParticipantName(code) ?? "";
+  const name = useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
   const [host, setHost] = useState("");
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -42,11 +42,15 @@ export default function Survey() {
     "Almost there...",
   ];
 
-  async function handleSubmit() {
-    if (!code || !name) {
-      setError("Missing session details. Go back and join again.");
-      return;
+  useEffect(() => {
+    if (!code || !getParticipantName(code)) {
+      setFlashMessage("Page not found");
+      navigate("/");
     }
+  }, [code, navigate]);
+
+  async function handleSubmit() {
+    if (!code || !getParticipantName(code)) return;
 
     setSubmitting(true);
     setError("");
@@ -83,10 +87,7 @@ export default function Survey() {
     let ws: WebSocket | undefined;
 
     async function load_survey() {
-      if (!code || !name) {
-        setError("Missing session details. Go back and join again.");
-        return;
-      }
+      if (!code || !getParticipantName(code)) return;
 
       try {
         const session = await axios.get(`${API_BASE}/session/${code}`);
@@ -95,6 +96,8 @@ export default function Survey() {
           setError("Session not found. Check the code and try again.");
           return;
         }
+
+        const status = session.data.status;
         setHost(session.data.host);
         setTotal(session.data.participants.length);
         setCuisinesRanked(
@@ -103,7 +106,6 @@ export default function Survey() {
           ),
         );
 
-        const status = session.data.status;
         const submittedNames = Object.keys(session.data.answers ?? {});
         setSubmitted(submittedNames);
 
@@ -140,7 +142,7 @@ export default function Survey() {
             navigate(`/lobby/${code.trim().toUpperCase()}`, { state: { name: name.trim() } });
           }
           else if (message["type"] == "session_ended"){
-            sessionStorage.setItem("up2u:message", "Session ended")
+            setFlashMessage("Session ended");
             navigate(`/`);
           }
         };
@@ -182,10 +184,7 @@ export default function Survey() {
   }, [step]);
 
   async function handleRetry() {
-    if (!code || !name) {
-      setError("Missing session details. Go back and join again.");
-      return;
-    }
+    if (!code || !getParticipantName(code)) return;
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
     try{
@@ -207,10 +206,7 @@ export default function Survey() {
   }
 
   async function handleEndSession() {
-    if (!code || !name) {
-      setError("Missing session details. Go back and join again.");
-      return;
-    }
+    if (!code || !getParticipantName(code)) return;
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
     try{
@@ -224,7 +220,7 @@ export default function Survey() {
         setError(response.data.error);
         return;
       }
-      sessionStorage.setItem("up2u:message", "Session ended")
+      setFlashMessage("Session ended");
       navigate(`/`);
     }
     catch{

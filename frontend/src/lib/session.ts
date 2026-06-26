@@ -31,3 +31,7 @@ export function getReveal(code: string){
     }
     return JSON.parse(reveal) as RevealData;
 }
+
+export function setFlashMessage(message: string) {
+    sessionStorage.setItem("up2u:message", message);
+}

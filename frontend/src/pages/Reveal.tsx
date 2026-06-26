@@ -1,51 +1,56 @@
 import { useState, useEffect } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import Button from "../components/Button";
-import type { RevealData } from "@/lib/session";
-import { getReveal } from "@/lib/session";
-
-
+import { getReveal, setFlashMessage } from "@/lib/session";
 
 export default function Reveal() {
-  const {code} = useParams();
-  const reveal = (useLocation().state as { reveal?: RevealData } | null)?.reveal ?? getReveal(code);
+  const { code } = useParams();
+  const navigate = useNavigate();
+  const reveal = code ? getReveal(code) : undefined;
   const [step, setStep] = useState(0);
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
 
-  if (!reveal) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4 text-center px-6">
-        <h1 className="text-3xl font-black text-green-800">Reveal unavailable</h1>
-        <p className="text-gray-600">
-          This page needs the live reveal event. Rejoin the session to see the result.
-        </p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!code || !getReveal(code)) {
+      setFlashMessage("Page not found");
+      navigate("/");
+    }
+  }, [code, navigate]);
+
+  const restaurantsSlideIndex = reveal
+    ? Object.keys(reveal.personality_lines).length + 2
+    : -1;
+
+  useEffect(() => {
+    if (!reveal || step === restaurantsSlideIndex) return;
+
+    const timer = setTimeout(() => {
+      setStep((prev) => prev + 1);
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [step, reveal, restaurantsSlideIndex]);
+
+  if (!reveal) return null;
 
   const slides = [
     ...Object.entries(reveal.personality_lines).map(([person, line]) => ({
       type: "personality",
       person,
-      line
+      line,
     })),
     { type: "agreements" },
     { type: "conflicts" },
-    { type: "restaurants" }
+    { type: "restaurants" },
   ];
 
-  const currentSlide = slides[step] as any;
+  const currentSlide = slides[step] as
+    | { type: "personality"; person: string; line: string }
+    | { type: "agreements" }
+    | { type: "conflicts" }
+    | { type: "restaurants" };
 
-  useEffect(() => {
-    if (slides[step]?.type === "restaurants") return;
-
-    const timer = setTimeout(() => {
-      setStep(step + 1);
-    }, 4000);
-
-    return () => clearTimeout(timer);
-  }, [step]);
   return (
     <div className="flex flex-col items-center justify-center h-screen">
       {currentSlide.type === "personality" && (

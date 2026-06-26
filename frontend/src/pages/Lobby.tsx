@@ -4,10 +4,11 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { API_BASE, WS_BASE } from "@/lib/config";
-import { getParticipantName } from "@/lib/session";
+import { getParticipantName, setFlashMessage } from "@/lib/session";
+
 export default function Lobby() {
   const { code } = useParams();
-  const name = useLocation().state?.name ?? getParticipantName(code) ?? "";
+  const name = useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
   const [host, setHost] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [lat, setLat] = useState<number | null>(null);
@@ -18,14 +19,18 @@ export default function Lobby() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!code || !getParticipantName(code)) {
+      setFlashMessage("Page not found");
+      navigate("/");
+    }
+  }, [code, navigate]);
+
+  useEffect(() => {
     let cancelled = false;
     let ws: WebSocket | undefined;
 
     async function get_session() {
-      if (!code || !name) {
-        setError("Missing session details. Go back and join again.");
-        return;
-      }
+      if (!code || !getParticipantName(code)) return;
 
       try {
         const session = await axios.get(`${API_BASE}/session/${code}`);
@@ -53,12 +58,13 @@ export default function Lobby() {
         };
       } catch {
         if (!cancelled) {
-          setError("Could not load the session. Check that the backend is running.");
+          setError(
+            "Could not load the session. Check that the backend is running.",
+          );
         }
       }
     }
     get_session();
-    // Close the socket on page exit so remounts do not leave duplicate listeners.
     return () => {
       cancelled = true;
       ws?.close();
@@ -67,7 +73,6 @@ export default function Lobby() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Functional state keeps the interval independent of stale render values.
       setDots((prev) => (prev.length === 3 ? "." : prev + "."));
     }, 750);
     return () => clearInterval(interval);
@@ -85,7 +90,7 @@ export default function Lobby() {
       const response = await axios.post(`${API_BASE}/start-session/${code}`, {
         host_name: name.trim(),
         lat,
-        lng
+        lng,
       });
       if (response.data?.error) {
         setError(response.data.error);

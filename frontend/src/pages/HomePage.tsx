@@ -19,8 +19,8 @@ export default function HomePage() {
     const message = sessionStorage.getItem("up2u:message");
     if (message) {
       setError(message);
+      sessionStorage.removeItem("up2u:message");
     }
-    sessionStorage.removeItem("up2u:message");
   }, []);
   async function handleCreate() {
     const trimmedName = name.trim();
