@@ -1,8 +1,8 @@
 type ButtonProps = {
   label: string;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
   disabled?: boolean;
-  variant?: string;
+  variant?: "solid" | "outline";
 };
 
 export default function Button({
@@ -13,8 +13,8 @@ export default function Button({
 }: ButtonProps) {
   const className =
     variant === "outline"
-      ? "font-semibold border-2 border-green-700 text-green-700 px-6 py-3 rounded-full"
-      : "font-semibold bg-green-700 text-white px-6 py-3 rounded-full";
+      ? "font-semibold border-2 border-green-700 text-green-700 px-6 py-3 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+      : "font-semibold bg-green-700 text-white px-6 py-3 rounded-full disabled:opacity-50 disabled:cursor-not-allowed";
   return (
     <button onClick={onClick} className={className} disabled={disabled}>
       {label}
