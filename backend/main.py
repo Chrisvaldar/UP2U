@@ -267,6 +267,7 @@ INVALID_TYPES = {
 
 # primaryType values that end in _restaurant but aren't cuisines for the survey
 NON_CUISINE_PRIMARY_TYPES = {
+    "chicken_restaurant",
     "dessert_restaurant",
     "fast_food_restaurant",
     "breakfast_restaurant",
