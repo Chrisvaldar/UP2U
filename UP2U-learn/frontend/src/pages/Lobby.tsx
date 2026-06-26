@@ -7,45 +7,94 @@ import { LocationAutocomplete } from "../components/LocationAutocomplete";
 const API_BASE = "http://127.0.0.1:8000";
 export default function Lobby() {
   const { code } = useParams();
-  const name = useLocation().state?.name;
+  const name = useLocation().state?.name ?? "";
   const [host, setHost] = useState("");
-  const [participants, setParticipants] = useState([]);
+  const [participants, setParticipants] = useState<string[]>([]);
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [dots, setDots] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
-    async function get_session() {
-      const ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
-      const session = await axios.get(`${API_BASE}/session/${code}`);
-      const host = session["data"]["host"];
-      setHost(host);
-      const participants = session["data"]["participants"];
-      setParticipants(participants);
+    let cancelled = false;
+    let ws: WebSocket | undefined;
 
-      ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        if (message["type"] == "participant_joined") {
-          setParticipants(message["data"]["participants"]);
-        } else if (message["type"] == "session_started") {
-          navigate(`/survey/${code}`, { state: { name } });
+    async function get_session() {
+      if (!code || !name) {
+        setError("Missing session details. Go back and join again.");
+        return;
+      }
+
+      try {
+        const session = await axios.get(`${API_BASE}/session/${code}`);
+        if (cancelled) return;
+        if (session.data?.error) {
+          setError("Session not found. Check the code and try again.");
+          return;
         }
-      };
+
+        setHost(session.data.host);
+        setParticipants(session.data.participants ?? []);
+
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
+
+        ws.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          if (message["type"] == "participant_joined") {
+            setParticipants(message["data"]["participants"]);
+          } else if (message["type"] == "session_started") {
+            navigate(`/survey/${code}`, { state: { name } });
+          }
+        };
+        ws.onerror = () => {
+          setError("Lost the live lobby connection. Refresh to reconnect.");
+        };
+      } catch {
+        if (!cancelled) {
+          setError("Could not load the session. Check that the backend is running.");
+        }
+      }
     }
     get_session();
+    // Close the socket on page exit so remounts do not leave duplicate listeners.
+    return () => {
+      cancelled = true;
+      ws?.close();
+    };
+  }, [code, name, navigate]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
+      // Functional state keeps the interval independent of stale render values.
       setDots((prev) => (prev.length === 3 ? "." : prev + "."));
     }, 750);
     return () => clearInterval(interval);
   }, []);
 
   async function handleStart() {
-    await axios.post(`${API_BASE}/start-session/${code}`, {
-      host_name: name.trim(),
-      lat,
-      lng
-    });
+    if (lat === null || lng === null) {
+      setError("Choose a location before starting.");
+      return;
+    }
+
+    setStarting(true);
+    setError("");
+    try {
+      const response = await axios.post(`${API_BASE}/start-session/${code}`, {
+        host_name: name.trim(),
+        lat,
+        lng
+      });
+      if (response.data?.error) {
+        setError(response.data.error);
+        setStarting(false);
+      }
+    } catch {
+      setError("Could not start the session. Try again.");
+      setStarting(false);
+    }
   }
 
   return (
@@ -67,12 +116,13 @@ export default function Lobby() {
             }}
           />
           <Button
-            label="Start Session"
+            label={starting ? "Starting..." : "Start Session"}
             onClick={handleStart}
-            disabled={lat === null || lng === null}
+            disabled={starting || lat === null || lng === null}
           />
         </div>
       )}{" "}
+      {error && <p className="text-red-600 text-sm mb-8">{error}</p>}
       <div className="grid grid-cols-3 gap-4">
         {participants.map((p) => (
           <div
