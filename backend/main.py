@@ -31,6 +31,7 @@ from google.genai.errors import ClientError, ServerError
 from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+from collections import defaultdict
 
 load_dotenv()
 r = redis.Redis.from_url(os.getenv("REDIS_URL"))
@@ -167,6 +168,8 @@ async def start_session(request: StartSessionRequest, code: str):
         session["status"] = "active"
         session["lat"] = request.lat
         session["lng"] = request.lng
+        cuisines = location_to_cuisines(session["lat"], session["lng"])
+        session["cuisines"] = cuisines
 
         # Preserve the original expiry so normal activity does not extend a session.
         r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -179,6 +182,7 @@ async def start_session(request: StartSessionRequest, code: str):
                     "lat": request.lat,
                     "lng": request.lng,
                     "participants": session["participants"],
+                    "cuisines": cuisines,
                 },
             },
         )
@@ -258,6 +262,24 @@ INVALID_TYPES = {
     "tourist_attraction",
     "historical_landmark",
     "shopping_mall",
+    "corporate_office",
+}
+
+# primaryType values that end in _restaurant but aren't cuisines for the survey
+NON_CUISINE_PRIMARY_TYPES = {
+    "dessert_restaurant",
+    "fast_food_restaurant",
+    "breakfast_restaurant",
+    "vegetarian_restaurant",
+    "vegan_restaurant",
+}
+
+# Trailing segments stripped to get the base cuisine (e.g. korean_barbecue -> korean)
+VENUE_MODIFIERS = {
+    "barbecue",
+    "bbq",
+    "grill",
+    "buffet",
 }
 
 # Generic types that appear on almost every place — not useful as cuisine tags
@@ -291,7 +313,8 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> lis
     - Non-restaurant venues (hotels, gyms, pharmacies, etc.)
     - Places without any food-related type tag
 
-    Returns a list of dicts with consistent keys for the AI prompt.
+    Returns a list of dicts with consistent keys for the AI prompt,
+    including primary_type (Google's single main label per place).
     """
     cleaned = []
     for place in raw_places:
@@ -312,6 +335,7 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> lis
                 "review_count": place.get("userRatingCount", 0),
                 "price_level": place.get("priceLevel", "Unknown"),
                 "address": place.get("formattedAddress", ""),
+                "primary_type": place.get("primaryType"),
                 # Strip generic suffixes so cuisines read as e.g. "japanese" not "japanese_restaurant"
                 "cuisines": [
                     t.replace("_restaurant", "").replace("_", " ")
@@ -332,6 +356,46 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> lis
             }
         )
     return cleaned
+
+
+def cuisine_from_primary_type(primary_type: str | None) -> str | None:
+    """
+    Derive a survey cuisine label from a Google Places primaryType.
+
+    Only types ending in _restaurant are considered — venue categories
+    like cafe and bar are excluded automatically. Non-cuisine restaurant
+    types (dessert, fast food) are skipped via NON_CUISINE_PRIMARY_TYPES.
+    Compound types such as korean_barbecue_restaurant normalize to the
+    base cuisine (korean).
+    """
+    if not primary_type or not primary_type.endswith("_restaurant"):
+        return None
+    if primary_type in NON_CUISINE_PRIMARY_TYPES:
+        return None
+
+    stem = primary_type[: -len("_restaurant")]
+    parts = stem.split("_")
+    if len(parts) > 1 and parts[-1] in VENUE_MODIFIERS:
+        stem = "_".join(parts[:-1])
+
+    return stem.replace("_", " ") if stem else None
+
+
+def location_to_cuisines(lat: float, lng: float) -> list[str]:
+    """
+    Return up to 5 nearby cuisine labels for the survey.
+
+    Counts one vote per restaurant using primary_type only, so generic
+    tags (cafe, bakery, etc.) cannot dominate the frequency ranking.
+    """
+    restaurants = get_nearby_restaurants(lat, lng, 2000)
+    cuisines = defaultdict(int)
+    for restaurant in restaurants:
+        cuisine = cuisine_from_primary_type(restaurant.get("primary_type"))
+        if cuisine:
+            cuisines[cuisine] += 1
+    ranked = sorted(cuisines, key=cuisines.get, reverse=True)
+    return ranked[:5]
 
 
 TRAVEL_LIMITS = {
@@ -356,7 +420,7 @@ def get_nearby_restaurants(
     latitude: float, longitude: float, radius: float = 500
 ) -> list:
     """
-    Fetch and clean restaurants within 500m of the given coordinates.
+    Fetch and clean restaurants within a certain radius of the given coordinates.
 
     Uses the Google Places API v1 (New) searchNearby endpoint.
     Returns up to 20 results, filtered through clean_restaurants.
@@ -371,8 +435,8 @@ def get_nearby_restaurants(
         "X-Goog-FieldMask": (
             "places.displayName,places.rating,places.userRatingCount,"
             "places.priceLevel,places.formattedAddress,places.types,"
-            "places.regularOpeningHours,places.editorialSummary,"
-            "places.id,places.location"
+            "places.primaryType,places.regularOpeningHours,"
+            "places.editorialSummary,places.id,places.location"
         ),
     }
     body = {
@@ -388,7 +452,6 @@ def get_nearby_restaurants(
     response = requests.post(url, headers=headers, json=body)
     raw = response.json().get("places", [])
     restaurants = clean_restaurants(raw, latitude, longitude)
-    print(restaurants)
     return restaurants
 
 

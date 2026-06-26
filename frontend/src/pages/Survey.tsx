@@ -16,13 +16,7 @@ export default function Survey() {
   const [total, setTotal] = useState(0);
   const [hunger, setHunger] = useState(1);
   const [vibe, setVibe] = useState("");
-  const [cuisinesRanked, setCuisinesRanked] = useState<string[]>([
-    "Chinese",
-    "Italian",
-    "Korean",
-    "Indonesian",
-    "Thai"
-  ]);
+  const [cuisinesRanked, setCuisinesRanked] = useState<string[]>([]);
   const [travelDistance, setTravelDistance] = useState("");
   const [dietary, setDietary] = useState<string[]>([]);
   const [step, setStep] = useState(0);
@@ -44,7 +38,7 @@ export default function Survey() {
     "Consulting the food gods...",
     "Almost there.",
     "Almost there..",
-    "Almost there..."
+    "Almost there...",
   ];
 
   async function handleSubmit() {
@@ -59,12 +53,12 @@ export default function Survey() {
       const response = await axios.post(`${API_BASE}/submit-answers/${code}`, {
         participant_name: name.trim(),
         answers: {
-          "hunger": hunger,
-          "vibe": vibe.toLowerCase(),
-          "cuisines_ranked": cuisinesRanked.map((c) => c.toLowerCase()),
-          "travel_distance": travelDistance.toLowerCase(),
-          "dietary": dietary.map((d) => d.toLowerCase())
-        }
+          hunger: hunger,
+          vibe: vibe.toLowerCase(),
+          cuisines_ranked: cuisinesRanked.map((c) => c.toLowerCase()),
+          travel_distance: travelDistance.toLowerCase(),
+          dietary: dietary.map((d) => d.toLowerCase()),
+        },
       });
       if (response.data?.error) {
         setError(response.data.error);
@@ -102,6 +96,11 @@ export default function Survey() {
         }
 
         setTotal(session.data.participants.length);
+        setCuisinesRanked(
+          (session.data.cuisines ?? []).map(
+            (c: string) => c.charAt(0).toUpperCase() + c.slice(1)
+          )
+        );
 
         ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
         ws.onmessage = (event) => {
@@ -116,7 +115,7 @@ export default function Survey() {
             }
           } else if (message["type"] == "reveal_ready") {
             navigate(`/reveal/${code}`, {
-              state: { name, reveal: message.data }
+              state: { name, reveal: message.data },
             });
           }
         };
@@ -125,7 +124,9 @@ export default function Survey() {
         };
       } catch {
         if (!cancelled) {
-          setError("Could not load the survey. Check that the backend is running.");
+          setError(
+            "Could not load the survey. Check that the backend is running.",
+          );
         }
       }
     }
@@ -275,7 +276,7 @@ export default function Survey() {
                     }
                   }}
                 />
-              )
+              ),
             )}
           </div>
           {error && <p className="text-red-600 text-sm">{error}</p>}
@@ -286,7 +287,9 @@ export default function Survey() {
           />
         </div>
       )}
-      {error && step !== 4 && <p className="text-red-600 text-sm mt-6">{error}</p>}
+      {error && step !== 4 && (
+        <p className="text-red-600 text-sm mt-6">{error}</p>
+      )}
       {step === 5 && (
         <div className="flex flex-col items-center gap-6">
           <h2 className="text-3xl font-black text-green-800 mb-4">
