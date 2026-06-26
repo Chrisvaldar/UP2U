@@ -103,6 +103,19 @@ export default function Survey() {
           ),
         );
 
+        const status = session.data.status;
+        const submittedNames = Object.keys(session.data.answers ?? {});
+        setSubmitted(submittedNames);
+
+        if (status === "reveal_failed") {
+          setError("Oops! Reveal failed");
+          setStep(7);
+        } else if (status === "revealing") {
+          setStep(6);
+        } else if (submittedNames.includes(name.trim())) {
+          setStep(5);
+        }
+
         ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data);
