@@ -6,8 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import SortableItem from "@/components/SortableItem";
 import { DragDropProvider } from "@dnd-kit/react";
 import { move } from "@dnd-kit/helpers";
-
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE, WS_BASE } from "@/lib/config";
 
 export default function Survey() {
   const { code } = useParams();
@@ -102,7 +101,7 @@ export default function Survey() {
           )
         );
 
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
+        ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data);
           if (message["type"] == "answer_submitted") {

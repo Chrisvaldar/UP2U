@@ -3,8 +3,7 @@ import axios from "axios";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
-
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE, WS_BASE } from "@/lib/config";
 export default function Lobby() {
   const { code } = useParams();
   const name = useLocation().state?.name ?? "";
@@ -38,7 +37,7 @@ export default function Lobby() {
         setHost(session.data.host);
         setParticipants(session.data.participants ?? []);
 
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/${code}/${name}`);
+        ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
 
         ws.onmessage = (event) => {
           const message = JSON.parse(event.data);

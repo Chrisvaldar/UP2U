@@ -3,8 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
-
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "@/lib/config";
 type Screen = "landing" | "create" | "join";
 
 export default function HomePage() {
