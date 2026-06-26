@@ -5,26 +5,71 @@ import Button from "../components/Button";
 import Input from "../components/Input";
 
 const API_BASE = "http://127.0.0.1:8000";
+type Screen = "landing" | "create" | "join";
 
 export default function HomePage() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [screen, setScreen] = useState("landing");
+  const [screen, setScreen] = useState<Screen>("landing");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   async function handleCreate() {
-    const response = await axios.post(`${API_BASE}/create-session`, {
-      host_name: name.trim()
-    });
-    const sessionCode = response.data.code;
-    navigate(`/lobby/${sessionCode}`, { state: { name } });
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Enter your name first.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const response = await axios.post(`${API_BASE}/create-session`, {
+        host_name: trimmedName
+      });
+      const sessionCode = response.data.code;
+      navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
+    } catch {
+      setError("Could not create a session. Check that the backend is running.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleJoin() {
-    await axios.post(`${API_BASE}/join-session/${code}`, {
-      participant_name: name.trim()
-    });
-    navigate(`/lobby/${code}`, { state: { name } });
+    const trimmedName = name.trim();
+    const sessionCode = code.trim().toUpperCase();
+    if (!trimmedName) {
+      setError("Enter your name first.");
+      return;
+    }
+    if (!sessionCode) {
+      setError("Enter a session code.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const response = await axios.post(`${API_BASE}/join-session/${sessionCode}`, {
+        participant_name: trimmedName
+      });
+      if (response.data?.error) {
+        setError("Session not found. Check the code and try again.");
+        return;
+      }
+      navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
+    } catch {
+      setError("Could not join that session. Check the code and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function selectScreen(nextScreen: Screen) {
+    setScreen(nextScreen);
+    setError("");
   }
 
   return (
@@ -33,8 +78,8 @@ export default function HomePage() {
 
       {screen === "landing" && (
         <div className="flex flex-col gap-4 text-xl">
-          <Button label="Create Session" onClick={() => setScreen("create")} />
-          <Button label="Join Session" onClick={() => setScreen("join")} />
+          <Button label="Create Session" onClick={() => selectScreen("create")} />
+          <Button label="Join Session" onClick={() => selectScreen("join")} />
         </div>
       )}
 
@@ -44,8 +89,14 @@ export default function HomePage() {
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={loading}
           />
-          <Button label="Create" onClick={handleCreate} />
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <Button
+            label={loading ? "Creating..." : "Create"}
+            onClick={handleCreate}
+            disabled={loading}
+          />
         </div>
       )}
 
@@ -55,13 +106,21 @@ export default function HomePage() {
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={loading}
           />
           <Input
             placeholder="Session Code"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            maxLength={6}
+            disabled={loading}
           />
-          <Button label="Join" onClick={handleJoin} />
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <Button
+            label={loading ? "Joining..." : "Join"}
+            onClick={handleJoin}
+            disabled={loading}
+          />
         </div>
       )}
     </div>
