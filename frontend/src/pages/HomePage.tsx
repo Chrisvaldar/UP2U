@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
@@ -15,6 +15,13 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const message = sessionStorage.getItem("up2u:message");
+    if (message) {
+      setError(message);
+    }
+    sessionStorage.removeItem("up2u:message");
+  }, []);
   async function handleCreate() {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -65,11 +72,11 @@ export default function HomePage() {
         setError(response.data.error);
         return;
       }
-      navigate(`/survey/${sessionCode}`, { state: { name: trimmedName } });
+      saveParticipantName(sessionCode, trimmedName);
       if (response.data.status === "active") {
-        saveParticipantName(sessionCode, trimmedName);
+        navigate(`/survey/${sessionCode}`, { state: { name: trimmedName } });
       } else {
-        saveParticipantName(sessionCode, trimmedName);
+        navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
       }
     } catch {
       setError("Could not join that session. Check the code and try again.");
@@ -94,6 +101,7 @@ export default function HomePage() {
             onClick={() => selectScreen("create")}
           />
           <Button label="Join Session" onClick={() => selectScreen("join")} />
+          {error && (<h3>{error}</h3>)}
         </div>
       )}
 

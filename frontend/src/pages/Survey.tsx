@@ -12,6 +12,7 @@ import { getParticipantName, saveReveal } from "@/lib/session";
 export default function Survey() {
   const { code } = useParams();
   const name = useLocation().state?.name ?? getParticipantName(code) ?? "";
+  const [host, setHost] = useState("");
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [hunger, setHunger] = useState(1);
@@ -94,12 +95,12 @@ export default function Survey() {
           setError("Session not found. Check the code and try again.");
           return;
         }
-
+        setHost(session.data.host);
         setTotal(session.data.participants.length);
         setCuisinesRanked(
           (session.data.cuisines ?? []).map(
-            (c: string) => c.charAt(0).toUpperCase() + c.slice(1)
-          )
+            (c: string) => c.charAt(0).toUpperCase() + c.slice(1),
+          ),
         );
 
         ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
@@ -118,6 +119,16 @@ export default function Survey() {
             navigate(`/reveal/${code}`, {
               state: { name, reveal: message.data },
             });
+          } else if (message["type"] == "reveal_failed") {
+            setError(message.data.error);
+            setStep(7);
+          }
+          else if (message["type"] == "retrying"){
+            navigate(`/lobby/${code.trim().toUpperCase()}`, { state: { name: name.trim() } });
+          }
+          else if (message["type"] == "session_ended"){
+            sessionStorage.setItem("up2u:message", "Session ended")
+            navigate(`/`);
           }
         };
         ws.onerror = () => {
@@ -156,6 +167,57 @@ export default function Survey() {
       return () => clearInterval(interval);
     }
   }, [step]);
+
+  async function handleRetry() {
+    if (!code || !name) {
+      setError("Missing session details. Go back and join again.");
+      return;
+    }
+    const trimmedName = name.trim();
+    const sessionCode = code.trim().toUpperCase();
+    try{
+      const response = await axios.post(
+        `${API_BASE}/retry-session/${sessionCode}`,
+        {
+          host_name: trimmedName,
+        },
+      );
+      if (response.data?.error) {
+        setError(response.data.error);
+        return;
+      }
+      navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
+    }
+    catch{
+      setError("Failed to retry, try again later")
+    }
+  }
+
+  async function handleEndSession() {
+    if (!code || !name) {
+      setError("Missing session details. Go back and join again.");
+      return;
+    }
+    const trimmedName = name.trim();
+    const sessionCode = code.trim().toUpperCase();
+    try{
+      const response = await axios.post(
+        `${API_BASE}/end-session/${sessionCode}`,
+        {
+          host_name: trimmedName,
+        },
+      );
+      if (response.data?.error) {
+        setError(response.data.error);
+        return;
+      }
+      sessionStorage.setItem("up2u:message", "Session ended")
+      navigate(`/`);
+    }
+    catch{
+      setError("Failed to end session, try again later")
+    }
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-screen">
@@ -306,6 +368,20 @@ export default function Survey() {
           <h2 className="text-3xl font-black text-white mb-4">
             {loadingMessages[messageIndex]}
           </h2>
+        </div>
+      )}
+      {step === 7 && (
+        <div className="bg-green-700 h-screen w-screen flex items-center justify-center">
+          <h2 className="text-3xl font-black text-green-800 mb-4">
+            {error}
+          </h2>
+          {name === host && (
+            <div>
+              <Button label="Go back to lobby" onClick={handleRetry} />
+              <Button label="End session" onClick={handleEndSession} />
+            </div>
+          )}
+          {name !== host && <h3>{`Waiting for host to decide${dots}`}</h3>}
         </div>
       )}
     </div>
