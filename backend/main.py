@@ -1,37 +1,44 @@
 """
-UP2U Backend — main.py
-======================
-FastAPI application for UP2U, a real-time group dining decision app.
+UP2U Learn — Backend
+====================
+Rebuild the UP2U backend yourself. Reference: ../../backend/main.py
 
-Flow:
-    1. Host creates a session → gets a 6-char code
-    2. Participants join via that code
-    3. Host starts the session
-    4. Everyone fills out the survey and submits answers
-    5. When all answers are in, the AI reveal is generated and broadcast
+Day 1 goals:
+  - GET  /                  health check
+  - POST /create-session    6-char code, store in Redis (1h TTL)
+  - GET  /session/{code}    return session JSON or error
 
-Session state lives in Redis with a 1-hour TTL.
-Real-time events are pushed to clients over WebSockets.
+Run:
+  uvicorn main:app --reload
+
+Docs:
+  http://localhost:8000/docs
 """
 
-from fastapi import FastAPI, WebSocket
-from google import genai
-from dotenv import load_dotenv
 import os
-import redis
-import random, string
-import json
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, WebSocket
 from pydantic import BaseModel
-import requests
+from dotenv import load_dotenv
+import redis
+import random
+import string
+import json
 import math
+import requests
+from urllib.parse import quote
+from google import genai
+from google.genai.errors import ClientError, ServerError
+from groq import Groq
+from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 
 load_dotenv()
+r = redis.Redis.from_url(os.getenv("REDIS_URL"))
+GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-app = FastAPI()
-
-# Allow all origins during development. Tighten this in production
-# to only allow your frontend's domain.
+app = FastAPI(title="UP2U Learn")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,18 +47,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-r = redis.Redis.from_url(os.getenv("REDIS_URL"))
 
-GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+class ConnectionManager:
+    def __init__(self):
+        self.sessions: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, session_code: str, websocket: WebSocket):
+        await websocket.accept()
+        if session_code not in self.sessions:
+            self.sessions[session_code] = []
+        self.sessions[session_code].append(websocket)
+
+    async def disconnect(self, session_code: str, websocket: WebSocket):
+        self.sessions[session_code].remove(websocket)
+
+    async def broadcast(self, session_code: str, event: dict):
+        if session_code not in self.sessions:
+            return
+        for ws in self.sessions[session_code]:
+            await ws.send_text(json.dumps(event))
 
 
-# ---------------------------------------------------------------------------
-# Request models
-# ---------------------------------------------------------------------------
-# Pydantic models define and validate the shape of incoming request bodies.
-# FastAPI uses these automatically — if the request doesn't match, it returns
-# a 422 error before your code even runs.
+manager = ConnectionManager()
 
 
 class CreateSessionRequest(BaseModel):
@@ -64,7 +81,8 @@ class JoinSessionRequest(BaseModel):
 
 class StartSessionRequest(BaseModel):
     host_name: str
-    location: str
+    lat: float
+    lng: float
 
 
 class SubmitAnswersRequest(BaseModel):
@@ -72,92 +90,36 @@ class SubmitAnswersRequest(BaseModel):
     answers: dict
 
 
-# ---------------------------------------------------------------------------
-# WebSocket connection manager
-# ---------------------------------------------------------------------------
-
-
-class ConnectionManager:
-    """
-    Manages active WebSocket connections grouped by session code.
-
-    Each session has a list of connected WebSockets. When an event happens
-    (e.g. someone joins), we broadcast it to everyone in that session.
-
-    Note: this is in-memory, so it won't work across multiple server
-    instances. A production setup would use Redis pub/sub instead.
-    """
-
-    def __init__(self):
-        # { "ABC123": [websocket1, websocket2, ...] }
-        self.sessions: dict[str, list[WebSocket]] = {}
-
-    async def connect(self, session_code: str, websocket: WebSocket):
-        """Accept a new WebSocket and register it under the session code."""
-        await websocket.accept()
-        if session_code not in self.sessions:
-            self.sessions[session_code] = []
-        self.sessions[session_code].append(websocket)
-
-    async def disconnect(self, session_code: str, websocket: WebSocket):
-        """Remove a WebSocket when the client disconnects."""
-        self.sessions[session_code].remove(websocket)
-
-    async def broadcast(self, session_code: str, event: dict):
-        """Send a JSON event to every connected client in the session."""
-        if session_code not in self.sessions:
-            return  # no one connected yet, nothing to do
-        for ws in self.sessions[session_code]:
-            await ws.send_text(json.dumps(event))
-
-
-manager = ConnectionManager()
-
-
-# ---------------------------------------------------------------------------
-# Helper: Redis session key
-# ---------------------------------------------------------------------------
-
-
 def session_key(code: str) -> str:
-    """Returns the Redis key for a given session code."""
     return f"session:{code}"
 
 
-# ---------------------------------------------------------------------------
-# HTTP endpoints
-# ---------------------------------------------------------------------------
-
-
 @app.get("/")
-def root():
-    return {"message": "UP2U backend is alive"}
+def health():
+    return {"message": "It's alive!"}
 
 
 @app.post("/create-session")
 def create_session(request: CreateSessionRequest):
-    """
-    Create a new session and return a 6-character join code.
+    ttl_seconds = 3600
 
-    The code is uppercase alphanumeric (e.g. "X4K9PQ") so it's easy
-    to share verbally. Session expires after 1 hour via Redis TTL.
-    """
-    new_code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
     session = {
-        "code": new_code,
+        "code": code,
         "host": request.host_name,
         "status": "waiting",
         "location": None,
-        "participants": [],
+        "participants": [request.host_name],
         "answers": {},
     }
-    r.setex(session_key(new_code), 3600, json.dumps(session))
-    return {"session_code": new_code}
+
+    r.setex(session_key(code), ttl_seconds, json.dumps(session))
+
+    return {"code": code}
 
 
 @app.get("/session/{code}")
 def get_session(code: str):
-    """Return current session state. Used on page load/refresh."""
     data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
@@ -165,23 +127,17 @@ def get_session(code: str):
 
 
 @app.post("/join-session/{code}")
-async def join_session(code: str, request: JoinSessionRequest):
-    """
-    Add a participant to the session and broadcast a participant_joined event.
-
-    We preserve the existing TTL when writing back to Redis so that
-    a participant joining doesn't accidentally extend the session lifetime.
-    """
-    key = session_key(code)
-    ttl = r.ttl(key)  # preserve remaining TTL — don't reset to 3600
-    data = r.get(key)
-
+async def join_session(request: JoinSessionRequest, code: str):
+    data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
 
     session = json.loads(data)
+    # Preserve the original expiry so normal activity does not extend a session.
+    ttl_seconds = r.ttl(session_key(code))
+
     session["participants"].append(request.participant_name)
-    r.setex(key, ttl, json.dumps(session))
+    r.setex(session_key(code), ttl_seconds, json.dumps(session))
 
     await manager.broadcast(
         code,
@@ -194,71 +150,54 @@ async def join_session(code: str, request: JoinSessionRequest):
         },
     )
 
-    return {"session_code": code}
-
-
-@app.post("/start-session/{code}")
-async def start_session(code: str, request: StartSessionRequest):
-    """
-    Host starts the session, transitioning status from 'waiting' to 'active'.
-
-    Broadcasts session_started so all lobby clients know to navigate
-    to the survey. Only the host (matched by name) can call this.
-
-    TODO: Replace name-based host check with a proper auth token.
-    """
-    key = session_key(code)
-    ttl = r.ttl(key)
-    data = r.get(key)
-
-    if data is None:
-        return {"error": "session not found"}
-
-    session = json.loads(data)
-
-    if request.host_name != session["host"]:
-        return {"error": "only the host can start the session"}
-
-    session["status"] = "active"
-    session["location"] = request.location
-    r.setex(key, ttl, json.dumps(session))
-
-    await manager.broadcast(
-        code,
-        {
-            "type": "session_started",
-            "data": {"location": request.location},
-        },
-    )
-
     return session
 
 
+@app.post("/start-session/{code}")
+async def start_session(request: StartSessionRequest, code: str):
+    data = r.get(session_key(code))
+    if data is None:
+        return {"error": "session not found"}
+    session = json.loads(data)
+    ttl_seconds = r.ttl(session_key(code))
+
+    if request.host_name == session["host"]:
+        session["status"] = "active"
+        session["lat"] = request.lat
+        session["lng"] = request.lng
+
+        # Preserve the original expiry so normal activity does not extend a session.
+        r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        await manager.broadcast(
+            code,
+            {
+                "type": "session_started",
+                "data": {
+                    "host": request.host_name,
+                    "lat": request.lat,
+                    "lng": request.lng,
+                    "participants": session["participants"],
+                },
+            },
+        )
+        return session
+
+    return {"error": "Only the host can start the session"}
+
+
 @app.post("/submit-answers/{code}")
-async def submit_answers(code: str, request: SubmitAnswersRequest):
-    """
-    Record a participant's survey answers and broadcast answer_submitted.
-
-    When every participant has submitted, this endpoint triggers the AI
-    reveal automatically: it fetches nearby restaurants, calls Gemini,
-    and broadcasts reveal_ready with the full reveal payload.
-
-    The trigger logic is: len(answers) == len(participants).
-    """
-    key = session_key(code)
-    ttl = r.ttl(key)
-    data = r.get(key)
-
+async def submit_answers(request: SubmitAnswersRequest, code: str):
+    data = r.get(session_key(code))
     if data is None:
         return {"error": "session not found"}
 
     session = json.loads(data)
+    # Preserve the original expiry so normal activity does not extend a session.
+    ttl_seconds = r.ttl(session_key(code))
 
     if request.participant_name not in session["participants"]:
-        return {"error": "participant not found in session"}
-
+        return {"error": "Participant not found"}
     session["answers"][request.participant_name] = request.answers
-    r.setex(key, ttl, json.dumps(session))
 
     await manager.broadcast(
         code,
@@ -272,19 +211,18 @@ async def submit_answers(code: str, request: SubmitAnswersRequest):
         },
     )
 
-    # All answers in — generate and broadcast the reveal
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
-
-        # TODO: replace hardcoded coords with actual geocoding from session["location"]
-        loc = [-37.8136, 144.9631]  # Melbourne CBD
-        restaurants = get_nearby_restaurants(loc[0], loc[1])
-
+        lat = session["lat"]
+        lng = session["lng"]
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]
-        reveal = generate_reveal(users, restaurants)
-
-        await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
-
+        try:
+            # The reveal pipeline performs blocking HTTP/AI calls; keep the event loop responsive.
+            reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
+            await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
+        except Exception:
+            pass
+    r.setex(session_key(code), ttl_seconds, json.dumps(session))
     return session
 
 
@@ -292,35 +230,15 @@ async def submit_answers(code: str, request: SubmitAnswersRequest):
 async def websocket_endpoint(
     websocket: WebSocket, session_code: str, participant_name: str
 ):
-    """
-    Persistent WebSocket connection for a participant in a session.
-
-    The participant name is in the URL so the server knows who this
-    socket belongs to without any auth handshake.
-
-    Currently the server doesn't do anything with messages sent *from*
-    clients — it just re-broadcasts them. All meaningful events are
-    server-initiated (participant_joined, session_started, etc).
-    """
     await manager.connect(session_code, websocket)
+
     try:
         while True:
-            data = await websocket.receive_text()
-            # Re-broadcast any client message to the session
-            await manager.broadcast(
-                session_code,
-                {
-                    "type": "message",
-                    "data": {"participant": participant_name, "message": data},
-                },
-            )
-    except Exception:
+            await websocket.receive_text()
+    except:
+        # Drop the socket from the session pool when the client disconnects or the loop exits.
         await manager.disconnect(session_code, websocket)
 
-
-# ---------------------------------------------------------------------------
-# Restaurant fetching (Google Places API)
-# ---------------------------------------------------------------------------
 
 # Place types that indicate a venue is NOT a restaurant we want to recommend
 INVALID_TYPES = {
@@ -351,12 +269,6 @@ GENERIC_TYPES = {
 
 
 def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    """
-    Calculate straight-line distance between two lat/lng points in metres.
-
-    Uses the Haversine formula, which accounts for Earth's curvature.
-    Good enough for short distances like 'walking to a restaurant'.
-    """
     R = 6371000  # Earth's radius in metres
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -419,7 +331,27 @@ def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> lis
     return cleaned
 
 
-def get_nearby_restaurants(latitude: float, longitude: float) -> list:
+TRAVEL_LIMITS = {
+    "short walk (<500m)": 500,
+    "public transport (<2km)": 2000,
+    "don't mind": 3000,
+}
+DEFAULT_TRAVEL_LIMIT = 500  # conservative fallback if answer missing
+
+
+def get_search_radius(users: list[dict]) -> float:
+    """How far the group is willing to travel — limited by the strictest person."""
+    limits = [
+        TRAVEL_LIMITS.get(u.get("travel_distance", ""), DEFAULT_TRAVEL_LIMIT)
+        for u in users
+    ]
+    print(min(limits))
+    return min(limits) if limits else DEFAULT_TRAVEL_LIMIT
+
+
+def get_nearby_restaurants(
+    latitude: float, longitude: float, radius: float = 500
+) -> list:
     """
     Fetch and clean restaurants within 500m of the given coordinates.
 
@@ -446,49 +378,127 @@ def get_nearby_restaurants(latitude: float, longitude: float) -> list:
         "locationRestriction": {
             "circle": {
                 "center": {"latitude": latitude, "longitude": longitude},
-                "radius": 500.0,
+                "radius": radius,
             }
         },
     }
     response = requests.post(url, headers=headers, json=body)
     raw = response.json().get("places", [])
-    return clean_restaurants(raw, latitude, longitude)
+    restaurants = clean_restaurants(raw, latitude, longitude)
+    print(restaurants)
+    return restaurants
 
 
-# ---------------------------------------------------------------------------
-# AI reveal generation (Google Gemini)
-# ---------------------------------------------------------------------------
+@app.get("/test-places")
+def test_places(radius: float = 500):
+    return get_nearby_restaurants(-37.8136, 144.9631, radius)
 
 
-def generate_reveal(users: list[dict], restaurants: list[dict]) -> dict:
-    """
-    Generate the personality roasts and restaurant recommendation via Gemini.
+def rank_restaurants_for_group(
+    restaurants: list[dict], radius: float, users: list[dict]
+):
+    open_and_distance = [r for r in restaurants if r["open_now"] != False]
 
-    Steps:
-    1. Pre-filter to only open restaurants, take top 6 by rating
-    2. Format users and restaurants as plain text for the prompt
-    3. Call Gemini with a system prompt defining the output format
-    4. Parse and return the JSON response
+    filtered = [
+        r
+        for r in open_and_distance
+        if all(cuisine_matches(r, u["cuisines_ranked"]) for u in users)
+    ]
+    if len(filtered) < 3:
+        filtered = open_and_distance
 
-    Args:
-        users: List of participant dicts, each with name + survey answers
-        restaurants: Cleaned restaurant dicts from get_nearby_restaurants
+    for r in filtered:
+        r["_group_score"] = score_restaurant_for_group(r, users, radius)
 
-    Returns:
-        Reveal dict matching the structure:
-        {
-            personality_lines: { name: line },
-            agreements: str,
-            conflicts: str,
-            primary: { name, reason, maps_link },
-            backups: [{ name, reason }]
-        }
-    """
-    # Only consider places that are currently open, ranked by quality
-    restaurants = [r for r in restaurants if r["open_now"] != False]
-    restaurants = sorted(
-        restaurants, key=lambda r: (r["rating"], r["review_count"]), reverse=True
-    )[:6]
+    print(sorted(filtered, key=lambda r: r["_group_score"], reverse=True))
+
+    return sorted(filtered, key=lambda r: r["_group_score"], reverse=True)
+
+
+def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) -> dict:
+    radius = get_search_radius(users)
+    restaurants = get_nearby_restaurants(latitude, longitude, 2000)
+    shortlist = rank_restaurants_for_group(restaurants, radius, users)
+    return generate_reveal(users, shortlist, radius)
+
+
+def cuisine_matches(restaurant, ranked_cuisines):
+    lower_res = [str.lower(s) for s in restaurant["cuisines"]]
+    lower_ranked = [str.lower(s) for s in ranked_cuisines]
+    for res in lower_ranked:
+        if any(res in rc for rc in lower_res):
+            return True
+    return False
+
+
+def score_cuisine(restaurant: dict, ranked_cuisines: list[str]) -> int:
+    res_cuisines = [str.lower(s) for s in restaurant["cuisines"]]
+    ranked_cuisines = [str.lower(s) for s in ranked_cuisines]
+    best_match = 0
+    points = [10, 7, 5, 3]
+    for index, cuisine in enumerate(ranked_cuisines):
+        if any(cuisine in rc for rc in res_cuisines):
+            best_match = max(best_match, points[min(index, len(points) - 1)])
+    return best_match
+
+
+def score_restaurant_for_person(restaurant: dict, user: dict, radius: float) -> float:
+    total = score_cuisine(restaurant, user["cuisines_ranked"])
+
+    if radius > 0:
+        total += (radius - restaurant["distance_meters"]) / radius * 5
+    total += restaurant["rating"] * 0.5
+
+    return total
+
+
+def score_restaurant_for_group(
+    restaurant: dict, users: list[dict], radius: float
+) -> float:
+    return min(score_restaurant_for_person(restaurant, user, radius) for user in users)
+
+
+def _gemini_is_rate_limited(exc: Exception) -> bool:
+    if isinstance(exc, (ClientError, ServerError)):
+        return exc.code in (429, 503)
+    return False
+
+
+def call_gemini(system_prompt: str, user_prompt: str) -> str:
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            config={"system_instruction": system_prompt},
+            contents=user_prompt,
+        )
+        return response.text.strip()
+    except Exception:
+        raise
+
+
+def call_groq(system_prompt: str, user_prompt: str) -> str:
+    client = Groq(api_key=GROQ_API_KEY)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    return response.choices[0].message.content.strip()
+
+
+def parse_reveal_response(raw: str) -> dict:
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    return json.loads(raw.strip())
+
+
+def generate_reveal(users: list[dict], restaurants: list[dict], strict_radius: int):
+    restaurants = restaurants[:15]
 
     # Format user preferences as a readable block for the prompt
     preferences_text = "\n".join(
@@ -508,7 +518,7 @@ def generate_reveal(users: list[dict], restaurants: list[dict]) -> dict:
     )
 
     system_prompt = """You are a fun, hype-man AI helping a group of friends decide where to eat.
-You're part of the group, not an outsider observing them.
+You're part of the group, not an outsider observing them. Only pick from the restaurant's list, don't invent places
 
 Your job:
 1. Write a SHORT roast-style personality line for each person based on their food mood
@@ -547,6 +557,10 @@ Rules for backup reasons:
 
 Other rules:
 - Respect dietary restrictions strictly, never recommend somewhere a person can't eat
+- Never recommend the same restaurant more than once
+- The primary must be within the strict tradeoff. Backups may exceed this but should explain the tradeoff in their reason. 
+    Example scenario: Restaurant A is the correct cuisine but 500m farther than the agreed distance or Restaurant B is within distance, 
+    but it is the the second or third highest rated cuisine instead of first
 - Prefer open, highly rated, highly reviewed places
 - Return ONLY valid JSON, no explanation, no markdown backticks"""
 
@@ -556,66 +570,75 @@ Other rules:
 Restaurants:
 {restaurants_text}
 
+Strict radius:
+{strict_radius}
+
 Return this exact JSON structure:
 {{
   "personality_lines": {{"name": "line"}},
   "agreements": "...",
   "conflicts": "...",
   "primary": {{"name": "...", "reason": "...", "maps_link": "..."}},
-  "backups": [{{"name": "...", "reason": "..."}}]
+  "backups": [{{"name": "...", "reason": "...", "maps_link": "..."}}]
 }}"""
 
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        config={"system_instruction": system_prompt},
-        contents=user_prompt,
-    )
-
-    raw = response.text.strip()
-    print(f"Gemini raw response: '{raw}'")
-
-    # Strip markdown code fences if the model wrapped the JSON anyway
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    raw = raw.strip()
-
-    return json.loads(raw)
-
-
-# ---------------------------------------------------------------------------
-# Dev/test endpoints — remove before deploying to production
-# ---------------------------------------------------------------------------
-
-
-@app.get("/test-places")
-def test_places():
-    """Smoke test for the Places API integration."""
-    return get_nearby_restaurants(-37.8136, 144.9631)
+    try:
+        raw = call_gemini(system_prompt, user_prompt)
+    except (ClientError, ServerError) as e:
+        if _gemini_is_rate_limited(e) and GROQ_API_KEY:
+            raw = call_groq(system_prompt, user_prompt)
+        else:
+            raise
+    print(raw)
+    return parse_reveal_response(raw)
 
 
 @app.get("/test-reveal")
 def test_reveal():
     """Smoke test for the full reveal pipeline with hardcoded users."""
-    restaurants = get_nearby_restaurants(-37.8136, 144.9631)
     users = [
         {
             "name": "Chris",
             "hunger": 5,
             "vibe": "quick",
             "cuisines_ranked": ["japanese", "thai"],
-            "travel_distance": "walking",
+            "travel_distance": "short walk (<500m)",
             "dietary": [],
         },
         {
             "name": "Sarah",
             "hunger": 2,
-            "vibe": "chill",
+            "vibe": "casual",
             "cuisines_ranked": ["italian", "greek"],
-            "travel_distance": "don't care",
+            "travel_distance": "don't mind",
             "dietary": ["vegetarian"],
         },
     ]
-    return generate_reveal(users, restaurants)
+    return run_reveal_pipeline(users, -37.8136, 144.9631)
+
+
+def geocode_location(address: str) -> tuple[float, float]:
+    """
+    Convert a text address to (latitude, longitude) via Geocoding API v4.
+
+    v4 puts the address in the URL path and authenticates with X-Goog-Api-Key
+    (same header style as Places API). Coords live at results[0].location.
+    """
+    if not address or not address.strip():
+        raise ValueError("Address is required")
+
+    url = f"https://geocode.googleapis.com/v4/geocode/address/{quote(address)}"
+    response = requests.get(url, headers={"X-Goog-Api-Key": GOOGLE_PLACES_API_KEY})
+    data = response.json()
+    results = data.get("results", [])
+    if not results:
+        raise ValueError(f"No geocoding results for: {address}")
+
+    location = results[0]["location"]
+    return location["latitude"], location["longitude"]
+
+
+@app.get("/test-geocode")
+def test_geocode(address: str = "Federation Square, Melbourne"):
+    lat, lng = geocode_location(address)
+    return {"address": address, "latitude": lat, "longitude": lng}
