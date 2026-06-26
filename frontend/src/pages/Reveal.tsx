@@ -1,24 +1,15 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import Button from "../components/Button";
+import type { RevealData } from "@/lib/session";
+import { getReveal } from "@/lib/session";
 
-type Restaurant = {
-  name: string;
-  reason: string;
-  maps_link: string;
-};
 
-type RevealData = {
-  personality_lines: Record<string, string>;
-  agreements: string;
-  conflicts: string;
-  primary: Restaurant;
-  backups: Restaurant[];
-};
 
 export default function Reveal() {
-  const reveal = (useLocation().state as { reveal?: RevealData } | null)?.reveal;
+  const {code} = useParams();
+  const reveal = (useLocation().state as { reveal?: RevealData } | null)?.reveal ?? getReveal(code);
   const [step, setStep] = useState(0);
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
 

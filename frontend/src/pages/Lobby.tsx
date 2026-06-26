@@ -4,9 +4,10 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Button from "../components/Button";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { API_BASE, WS_BASE } from "@/lib/config";
+import { getParticipantName } from "@/lib/session";
 export default function Lobby() {
   const { code } = useParams();
-  const name = useLocation().state?.name ?? "";
+  const name = useLocation().state?.name ?? getParticipantName(code) ?? "";
   const [host, setHost] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [lat, setLat] = useState<number | null>(null);

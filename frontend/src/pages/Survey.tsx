@@ -7,10 +7,11 @@ import SortableItem from "@/components/SortableItem";
 import { DragDropProvider } from "@dnd-kit/react";
 import { move } from "@dnd-kit/helpers";
 import { API_BASE, WS_BASE } from "@/lib/config";
+import { getParticipantName, saveReveal } from "@/lib/session";
 
 export default function Survey() {
   const { code } = useParams();
-  const name = useLocation().state?.name ?? "";
+  const name = useLocation().state?.name ?? getParticipantName(code) ?? "";
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
   const [hunger, setHunger] = useState(1);
@@ -113,6 +114,7 @@ export default function Survey() {
               setStep(6);
             }
           } else if (message["type"] == "reveal_ready") {
+            saveReveal(code, message.data);
             navigate(`/reveal/${code}`, {
               state: { name, reveal: message.data },
             });

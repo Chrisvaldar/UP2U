@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import { API_BASE } from "@/lib/config";
+import { saveParticipantName } from "@/lib/session";
 type Screen = "landing" | "create" | "join";
 
 export default function HomePage() {
@@ -28,6 +29,7 @@ export default function HomePage() {
         host_name: trimmedName,
       });
       const sessionCode = response.data.code;
+      saveParticipantName(sessionCode, trimmedName);
       navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
     } catch {
       setError(
@@ -63,10 +65,11 @@ export default function HomePage() {
         setError(response.data.error);
         return;
       }
+      navigate(`/survey/${sessionCode}`, { state: { name: trimmedName } });
       if (response.data.status === "active") {
-        navigate(`/survey/${sessionCode}`, { state: { name: trimmedName } });
+        saveParticipantName(sessionCode, trimmedName);
       } else {
-        navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
+        saveParticipantName(sessionCode, trimmedName);
       }
     } catch {
       setError("Could not join that session. Check the code and try again.");
