@@ -90,6 +90,11 @@ class SubmitAnswersRequest(BaseModel):
     participant_name: str
     answers: dict
 
+class RetrySessionRequest(BaseModel):
+    host_name: str
+
+class EndSessionRequest(BaseModel):
+    host_name: str
 
 def session_key(code: str) -> str:
     return f"session:{code}"
@@ -137,7 +142,7 @@ async def join_session(request: JoinSessionRequest, code: str):
     # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = r.ttl(session_key(code))
 
-    if session["status"] == "revealing":
+    if session["status"] == "revealing" or session["status"] == "reveal_failed":
         return {"error": "Uh oh! The group has decided already :("}
     session["participants"].append(request.participant_name)
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -228,11 +233,46 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
             reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
             await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
         except Exception:
-            pass
+            session["status"] = "reveal_failed"
+            r.setex(session_key(code), ttl_seconds, json.dumps(session))
+            print("Reveal pipeline failed")
+            await manager.broadcast(code, {"type": "reveal_failed", "data": {"error": "Oops! Reveal failed"}})
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
     return session
 
+@app.post("/retry-session/{code}")
+async def retry_session(code: str, request: RetrySessionRequest):
+    data = r.get(session_key(code))
+    if data is None:
+        return {"error": "session not found"}
 
+    session = json.loads(data)
+    ttl_seconds = r.ttl(session_key(code))
+    if request.host_name == session["host"]:
+        if session["status"] != "reveal_failed":
+            return {"error": "Retry is only available if pipeline fails"}
+        
+        session["status"] = "active"
+        session["answers"] = {}
+        r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        await manager.broadcast(code, {"type": "retrying", "data": {"message": "attempting retry"}})
+        return session
+    return {"error": "Only the host can retry the session"}
+
+@app.post("/end-session/{code}")
+async def end_session(code: str, request: EndSessionRequest):
+    data = r.get(session_key(code))
+    if data is None:
+        return {"error": "session not found"}
+
+    session = json.loads(data)
+    if request.host_name == session["host"]:
+        await manager.broadcast(code, {"type": "session_ended", "data": {"message": "end of session"}})
+
+        r.delete(session_key(code))
+        return session
+    return {"error": "Only the host can end the session"}
+    
 @app.websocket("/ws/{session_code}/{participant_name}")
 async def websocket_endpoint(
     websocket: WebSocket, session_code: str, participant_name: str
