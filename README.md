@@ -1,8 +1,8 @@
-# UP2U Learn
+# UP2U
 
-UP2U Learn is the canonical version of UP2U: a real-time group dining decision app. The original `../backend` and `../frontend` directories are reference-only during consolidation.
+UP2U is a real-time group dining decision app: create a session, collect group preferences, and reveal a restaurant pick with AI-generated personality lines.
 
-## Current Architecture
+## Architecture
 
 - `frontend/`: React 19, Vite 8, TypeScript, Tailwind 4, React Router, Axios, Google Maps Places autocomplete, dnd-kit ranking UI, Embla reveal carousel.
 - `backend/`: FastAPI, Redis session storage, WebSockets, Google Places, Gemini reveal generation, optional Groq fallback.
@@ -14,7 +14,7 @@ UP2U Learn is the canonical version of UP2U: a real-time group dining decision a
 Backend:
 
 ```powershell
-cd UP2U-learn\backend
+cd backend
 venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload
@@ -23,7 +23,7 @@ uvicorn main:app --reload
 Frontend:
 
 ```powershell
-cd UP2U-learn\frontend
+cd frontend
 npm install
 npm.cmd run dev
 ```
@@ -79,7 +79,7 @@ VITE_GOOGLE_MAPS_API_KEY=
 ## Verification
 
 ```powershell
-cd UP2U-learn\frontend
+cd frontend
 npm.cmd run build
 
 cd ..\backend

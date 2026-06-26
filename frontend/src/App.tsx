@@ -1,19 +1,21 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import HomePage from "@/pages/HomePage";
-import LobbyPage from "@/pages/LobbyPage";
-import SurveyPage from "@/pages/SurveyPage";
-import RevealPage from "@/pages/RevealPage";
+import "./App.css";
+import { Route, Routes } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+import Lobby from "./pages/Lobby";
+import Survey from "./pages/Survey";
+import Reveal from "./pages/Reveal";
+import { APIProvider } from "@vis.gl/react-google-maps";
 
 function App() {
   return (
-    <BrowserRouter>
+    <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/lobby/:code" element={<LobbyPage />} />
-        <Route path="/survey/:code" element={<SurveyPage />} />
-        <Route path="/reveal/:code" element={<RevealPage />} />
+        <Route path="/lobby/:code" element={<Lobby />} />
+        <Route path="/survey/:code" element={<Survey />} />
+        <Route path="/reveal/:code" element={<Reveal />} />
       </Routes>
-    </BrowserRouter>
+    </APIProvider>
   );
 }
 

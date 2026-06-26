@@ -1,136 +1,126 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import Button from "../components/Button";
+import Input from "../components/Input";
 
-const API_BASE = "http://localhost:8000";
-
-type Mode = "none" | "create" | "join";
+const API_BASE = "http://127.0.0.1:8000";
+type Screen = "landing" | "create" | "join";
 
 export default function HomePage() {
-  const navigate = useNavigate();
-  const [mode, setMode] = useState<Mode>("none");
   const [name, setName] = useState("");
-  const [joinCode, setJoinCode] = useState("");
+  const [code, setCode] = useState("");
+  const [screen, setScreen] = useState<Screen>("landing");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [location, setLocation] = useState("");
-
-  function selectMode(selected: Mode) {
-    // If clicking the already-open mode, close it
-    setMode(mode === selected ? "none" : selected);
-    setError("");
-    setName("");
-    setJoinCode("");
-  }
+  const navigate = useNavigate();
 
   async function handleCreate() {
-    if (!name.trim()) return setError("Enter your name");
-    if (!location.trim()) return setError("Enter a location");
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Enter your name first.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
-      const res = await axios.post(`${API_BASE}/create-session`, {
-        host_name: name.trim(),
+      const response = await axios.post(`${API_BASE}/create-session`, {
+        host_name: trimmedName
       });
-      const code = res.data.session_code;
-      await axios.post(`${API_BASE}/join-session/${code}`, {
-        participant_name: name.trim(),
-      });
-      navigate(`/lobby/${code}`, {
-        state: { name: name.trim(), isHost: true, location: location.trim() },
-      });
+      const sessionCode = response.data.code;
+      navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
     } catch {
-      setError("Failed to create session. Is the backend running?");
+      setError("Could not create a session. Check that the backend is running.");
     } finally {
       setLoading(false);
     }
   }
 
   async function handleJoin() {
-    if (!name.trim()) return setError("Enter your name");
-    if (!joinCode.trim()) return setError("Enter a session code");
+    const trimmedName = name.trim();
+    const sessionCode = code.trim().toUpperCase();
+    if (!trimmedName) {
+      setError("Enter your name first.");
+      return;
+    }
+    if (!sessionCode) {
+      setError("Enter a session code.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
-      await axios.post(
-        `${API_BASE}/join-session/${joinCode.trim().toUpperCase()}`,
-        {
-          participant_name: name.trim(),
-        },
-      );
-      navigate(`/lobby/${joinCode.trim().toUpperCase()}`, {
-        state: { name: name.trim(), isHost: false },
+      const response = await axios.post(`${API_BASE}/join-session/${sessionCode}`, {
+        participant_name: trimmedName
       });
+      if (response.data?.error) {
+        setError("Session not found. Check the code and try again.");
+        return;
+      }
+      navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
     } catch {
-      setError("Failed to join. Check the code and try again.");
+      setError("Could not join that session. Check the code and try again.");
     } finally {
       setLoading(false);
     }
   }
 
+  function selectScreen(nextScreen: Screen) {
+    setScreen(nextScreen);
+    setError("");
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-4xl font-bold">UP2U</h1>
-      <p className="text-muted-foreground">
-        Figure out where to eat, together.
-      </p>
+    <div className="flex justify-center items-center h-screen flex-col">
+      <h1 className="text-8xl font-black text-green-800 mb-8">UP2U</h1>
 
-      <div className="flex gap-4">
-        <button
-          className="border rounded px-6 py-3 font-medium hover:bg-muted transition-colors"
-          onClick={() => selectMode("create")}
-        >
-          Create session
-        </button>
-        <button
-          className="border rounded px-6 py-3 font-medium hover:bg-muted transition-colors"
-          onClick={() => selectMode("join")}
-        >
-          Join session
-        </button>
-      </div>
+      {screen === "landing" && (
+        <div className="flex flex-col gap-4 text-xl">
+          <Button label="Create Session" onClick={() => selectScreen("create")} />
+          <Button label="Join Session" onClick={() => selectScreen("join")} />
+        </div>
+      )}
 
-      {/* Inline form — only renders when a mode is selected */}
-      {mode !== "none" && (
-        <div className="flex flex-col gap-3 w-full max-w-sm border rounded p-6">
-          <h2 className="font-semibold">
-            {mode === "create" ? "Create a session" : "Join a session"}
-          </h2>
-
-          <input
-            className="border rounded px-3 py-2"
-            placeholder="Your name"
+      {screen === "create" && (
+        <div className="flex flex-col gap-4">
+          <Input
+            placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-          />
-
-          {mode === "create" && (
-            <input
-              className="border rounded px-3 py-2"
-              placeholder="Location (e.g. Melbourne CBD)"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          )}
-          {mode === "join" && (
-            <input
-              className="border rounded px-3 py-2 uppercase"
-              placeholder="Session code"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              maxLength={6}
-            />
-          )}
-
-          {error && <p className="text-destructive text-sm">{error}</p>}
-
-          <button
-            className="bg-primary text-primary-foreground rounded px-4 py-2 font-medium disabled:opacity-50"
-            onClick={mode === "create" ? handleCreate : handleJoin}
             disabled={loading}
-          >
-            {loading ? "..." : mode === "create" ? "Create" : "Join"}
-          </button>
+          />
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <Button
+            label={loading ? "Creating..." : "Create"}
+            onClick={handleCreate}
+            disabled={loading}
+          />
+        </div>
+      )}
+
+      {screen === "join" && (
+        <div className="flex flex-col gap-4">
+          <Input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={loading}
+          />
+          <Input
+            placeholder="Session Code"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            maxLength={6}
+            disabled={loading}
+          />
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <Button
+            label={loading ? "Joining..." : "Join"}
+            onClick={handleJoin}
+            disabled={loading}
+          />
         </div>
       )}
     </div>
