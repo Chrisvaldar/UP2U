@@ -136,6 +136,8 @@ async def join_session(request: JoinSessionRequest, code: str):
     # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = r.ttl(session_key(code))
 
+    if session["status"] == "revealing":
+        return {"error": "Uh oh! The group has decided already :("}
     session["participants"].append(request.participant_name)
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
 
@@ -213,6 +215,7 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
+        r.setex(session_key(code), ttl_seconds, json.dumps(session))
         lat = session["lat"]
         lng = session["lng"]
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]

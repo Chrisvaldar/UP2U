@@ -26,12 +26,14 @@ export default function HomePage() {
     setError("");
     try {
       const response = await axios.post(`${API_BASE}/create-session`, {
-        host_name: trimmedName
+        host_name: trimmedName,
       });
       const sessionCode = response.data.code;
       navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
     } catch {
-      setError("Could not create a session. Check that the backend is running.");
+      setError(
+        "Could not create a session. Check that the backend is running.",
+      );
     } finally {
       setLoading(false);
     }
@@ -52,14 +54,21 @@ export default function HomePage() {
     setLoading(true);
     setError("");
     try {
-      const response = await axios.post(`${API_BASE}/join-session/${sessionCode}`, {
-        participant_name: trimmedName
-      });
+      const response = await axios.post(
+        `${API_BASE}/join-session/${sessionCode}`,
+        {
+          participant_name: trimmedName,
+        },
+      );
       if (response.data?.error) {
-        setError("Session not found. Check the code and try again.");
+        setError(response.data.error);
         return;
       }
-      navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
+      if (response.data.status === "active") {
+        navigate(`/survey/${sessionCode}`, { state: { name: trimmedName } });
+      } else {
+        navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
+      }
     } catch {
       setError("Could not join that session. Check the code and try again.");
     } finally {
@@ -78,7 +87,10 @@ export default function HomePage() {
 
       {screen === "landing" && (
         <div className="flex flex-col gap-4 text-xl">
-          <Button label="Create Session" onClick={() => selectScreen("create")} />
+          <Button
+            label="Create Session"
+            onClick={() => selectScreen("create")}
+          />
           <Button label="Join Session" onClick={() => selectScreen("join")} />
         </div>
       )}
