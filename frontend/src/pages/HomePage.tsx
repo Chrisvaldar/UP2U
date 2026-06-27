@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import ErrorMessage from "../components/ErrorMessage";
 import { API_BASE } from "@/lib/config";
 import { saveParticipantName } from "@/lib/session";
 type Screen = "landing" | "create" | "join";
@@ -101,7 +102,7 @@ export default function HomePage() {
             onClick={() => selectScreen("create")}
           />
           <Button label="Join Session" onClick={() => selectScreen("join")} />
-          {error && (<h3>{error}</h3>)}
+          <ErrorMessage message={error} />
         </div>
       )}
 
@@ -113,7 +114,7 @@ export default function HomePage() {
             onChange={(e) => setName(e.target.value)}
             disabled={loading}
           />
-          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <ErrorMessage message={error} />
           <Button
             label={loading ? "Creating..." : "Create"}
             onClick={handleCreate}
@@ -137,7 +138,7 @@ export default function HomePage() {
             maxLength={6}
             disabled={loading}
           />
-          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          <ErrorMessage message={error} />
           <Button
             label={loading ? "Joining..." : "Join"}
             onClick={handleJoin}

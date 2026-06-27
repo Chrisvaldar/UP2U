@@ -5,6 +5,7 @@ import Button from "../components/Button";
 import { LocationAutocomplete } from "../components/LocationAutocomplete";
 import { API_BASE, WS_BASE } from "@/lib/config";
 import { getParticipantName, setFlashMessage } from "@/lib/session";
+import ErrorMessage from "../components/ErrorMessage";
 
 export default function Lobby() {
   const { code } = useParams();
@@ -127,7 +128,7 @@ export default function Lobby() {
           />
         </div>
       )}{" "}
-      {error && <p className="text-red-600 text-sm mb-8">{error}</p>}
+      <ErrorMessage message={error} className="mb-8" />
       <div className="grid grid-cols-3 gap-4">
         {participants.map((p) => (
           <div

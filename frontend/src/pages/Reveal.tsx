@@ -8,6 +8,7 @@ import {
   clearReveal,
   setFlashMessage,
 } from "@/lib/session";
+import ErrorMessage from "../components/ErrorMessage";
 import { API_BASE, WS_BASE } from "@/lib/config";
 import axios from "axios";
 
@@ -188,7 +189,7 @@ export default function Reveal() {
           {name === host && (
             <div>
               <Button label="End session" onClick={handleEndSession} />
-              {error && <p className="text-red-600 text-sm">{error}</p>}
+              <ErrorMessage message={error} />
             </div>
           )}
         </div>

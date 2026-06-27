@@ -8,6 +8,7 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { move } from "@dnd-kit/helpers";
 import { API_BASE, WS_BASE } from "@/lib/config";
 import { getParticipantName, saveReveal, clearReveal, setFlashMessage } from "@/lib/session";
+import ErrorMessage from "../components/ErrorMessage";
 
 export default function Survey() {
   const { code } = useParams();
@@ -355,7 +356,7 @@ export default function Survey() {
               ),
             )}
           </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          <ErrorMessage message={error} />
           <Button
             label={submitting ? "Submitting..." : "Submit"}
             onClick={handleSubmit}
@@ -363,9 +364,7 @@ export default function Survey() {
           />
         </div>
       )}
-      {error && step !== 4 && (
-        <p className="text-red-600 text-sm mt-6">{error}</p>
-      )}
+      {step !== 4 && <ErrorMessage message={error} className="mt-6" />}
       {step === 5 && (
         <div className="flex flex-col items-center gap-6">
           <h2 className="text-3xl font-black text-green-800 mb-4">
@@ -384,10 +383,8 @@ export default function Survey() {
         </div>
       )}
       {step === 7 && (
-        <div className="bg-green-700 h-screen w-screen flex items-center justify-center">
-          <h2 className="text-3xl font-black text-green-800 mb-4">
-            {error}
-          </h2>
+        <div className="bg-green-700 h-screen w-screen flex flex-col items-center justify-center">
+          <ErrorMessage message={error} className="mb-4 text-base" />
           {name === host && (
             <div>
               <Button label="Go back to lobby" onClick={handleRetry} />
