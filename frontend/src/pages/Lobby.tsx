@@ -110,7 +110,7 @@ export default function Lobby() {
         {" "}
         Host: {host}
       </h2>
-      {name === host && participants.length > 1 && (
+      {name === host && (
         <div className="flex gap-4 mb-12 items-center justify-center">
           <LocationAutocomplete
             onPlaceSelect={(place) => {
