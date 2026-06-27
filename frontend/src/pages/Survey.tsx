@@ -7,7 +7,7 @@ import SortableItem from "@/components/SortableItem";
 import { DragDropProvider } from "@dnd-kit/react";
 import { move } from "@dnd-kit/helpers";
 import { API_BASE, WS_BASE } from "@/lib/config";
-import { getParticipantName, saveReveal, setFlashMessage } from "@/lib/session";
+import { getParticipantName, saveReveal, clearReveal, setFlashMessage } from "@/lib/session";
 
 export default function Survey() {
   const { code } = useParams();
@@ -130,7 +130,7 @@ export default function Survey() {
               setStep(6);
             }
           } else if (message["type"] == "reveal_ready") {
-            saveReveal(code, message.data);
+            saveReveal(code.trim().toUpperCase(), message.data);
             navigate(`/reveal/${code}`, {
               state: { name, reveal: message.data },
             });
@@ -139,10 +139,12 @@ export default function Survey() {
             setStep(7);
           }
           else if (message["type"] == "retrying"){
+            clearReveal(code.trim().toUpperCase());
             navigate(`/lobby/${code.trim().toUpperCase()}`, { state: { name: name.trim() } });
           }
           else if (message["type"] == "session_ended"){
             setFlashMessage("Session ended");
+            clearReveal(code.trim().toUpperCase());
             navigate(`/`);
           }
         };
@@ -198,6 +200,7 @@ export default function Survey() {
         setError(response.data.error);
         return;
       }
+      clearReveal(sessionCode);
       navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
     }
     catch{
@@ -221,6 +224,7 @@ export default function Survey() {
         return;
       }
       setFlashMessage("Session ended");
+      clearReveal(sessionCode)
       navigate(`/`);
     }
     catch{
