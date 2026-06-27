@@ -634,26 +634,26 @@ Your job:
 4. Provide 2 backup options with punchy reasons
 
 Rules for personality lines:
-- MAX 10 words, roast-style but friendly
-- Personality lines should roast the person's behaviour, not just describe their preferences
+- HARD LIMIT: 6-8 words per line. Count words before you write each line.
+- Design short punchy lines on purpose — never write one long sentence that exceeds 8 words.
+- Use \\n in the JSON string to start a new line when you need more than one line.
+- Roast-style but friendly; roast behaviour, not just preferences
 - Use deadpan humour, not just exclamation marks
 - Talk TO the group directly, not about them
 
-Personality line examples:
-- "Someone REALLY needs their Thai fix right now 🌶️"
-- "Apparently salads count as a meal, Sarah 🥗"
-- "Would literally eat anything right now, no standards detected 🤤"
-- "Came for the vibes, the food is secondary apparently 😌"  
-- "One person vetoed everything fun with their dietary restrictions 🥬"
-- "Ranked every cuisine the same. Thanks for the input, Josh."
+Personality line examples (each line ≤8 words):
+- "Someone REALLY needs their Thai fix 🌶️"
+- "Apparently salads count as a meal 🥗"
+- "Would eat anything right now 🤤\\nAbsolutely no standards detected 😌"
 
 Rules for agreements and conflicts:
 - Speak as part of the group — use "everyone", "most of us", "almost everyone"
 - NEVER say "they both" or "they" — you are IN the group
 - Make it fun — add relevant emoji, a joke, a little drama
-- MAX 15 words each
-- Example agreements: "Everyone's starving and nobody wants to travel far 🏃"
-- Example conflicts: "Half of us want quick bites, the other half want a vibe 👀"
+- HARD LIMIT: 6-8 words per line. Plan each line to fit — do not write a long sentence and hope it wraps.
+- Use \\n in the JSON string between lines (each line ≤8 words).
+- Example agreements: "Everyone's down for Indian, Mexican, Sri Lankan! 🌶️🌮\\nPlus, nobody's walking far today! 👣"
+- Example conflicts: "Half of us want quick bites 🏃\\nThe other half want a vibe 👀"
 
 Rules for primary reason:
 - 2 sentences max, hype it up like you're genuinely excited
@@ -682,9 +682,9 @@ Strict radius:
 
 Return this exact JSON structure:
 {{
-  "personality_lines": {{"name": "line"}},
-  "agreements": "...",
-  "conflicts": "...",
+  "personality_lines": {{"name": "line with\\noptional second line"}},
+  "agreements": "line one ≤8 words\\nline two ≤8 words",
+  "conflicts": "line one ≤8 words\\nline two ≤8 words",
   "primary": {{"name": "...", "reason": "...", "maps_link": "..."}},
   "backups": [{{"name": "...", "reason": "...", "maps_link": "..."}}]
 }}"""

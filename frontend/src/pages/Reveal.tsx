@@ -136,19 +136,21 @@ export default function Reveal() {
           <h2 className="text-4xl font-black text-green-800">
             {currentSlide.person}
           </h2>
-          <p className="text-xl text-gray-600">{currentSlide.line}</p>
+          <p className="text-xl text-gray-600 max-w-md whitespace-pre-line">
+            {currentSlide.line}
+          </p>
         </div>
       )}
       {currentSlide.type === "agreements" && (
-        <div>
-          <h2 className="text-3xl font-black text-green-800">
+        <div className="max-w-md text-center px-6">
+          <h2 className="text-3xl font-black text-green-800 whitespace-pre-line">
             {reveal.agreements}
           </h2>
         </div>
       )}
       {currentSlide.type === "conflicts" && (
-        <div>
-          <h2 className="text-3xl font-black text-green-800">
+        <div className="max-w-md text-center px-6">
+          <h2 className="text-3xl font-black text-green-800 whitespace-pre-line">
             {reveal.conflicts}
           </h2>
         </div>
