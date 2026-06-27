@@ -1,15 +1,69 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import Button from "../components/Button";
-import { getReveal, setFlashMessage } from "@/lib/session";
+import {
+  getParticipantName,
+  getReveal,
+  clearReveal,
+  setFlashMessage,
+} from "@/lib/session";
+import { API_BASE, WS_BASE } from "@/lib/config";
+import axios from "axios";
 
 export default function Reveal() {
   const { code } = useParams();
   const navigate = useNavigate();
   const reveal = code ? getReveal(code) : undefined;
   const [step, setStep] = useState(0);
+  const name =
+    useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
+  const [host, setHost] = useState("");
+  const [error, setError] = useState("");
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    let ws: WebSocket | undefined;
+
+    async function start_reveal() {
+      if (!code || !name) {
+        return;
+      }
+
+      try {
+        const session = await axios.get(`${API_BASE}/session/${code}`);
+        if (cancelled) return;
+        if (session.data?.error) {
+          setFlashMessage("Page not found");
+          navigate("/");
+          return;
+        }
+
+        setHost(session.data.host);
+        ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
+        ws.onmessage = (event) => {
+          const message = JSON.parse(event.data);
+          if (message["type"] === "session_ended") {
+            clearReveal(code.trim().toUpperCase());
+            setFlashMessage("Session ended");
+            navigate("/");
+          }
+        };
+      } catch {
+        if (!cancelled) {
+          setFlashMessage("Network failed");
+          navigate("/");
+        }
+        return;
+      }
+    }
+    start_reveal();
+    return () => {
+      cancelled = true;
+      ws?.close();
+    };
+  }, [code, name, navigate]);
 
   useEffect(() => {
     if (!code || !getReveal(code)) {
@@ -51,6 +105,29 @@ export default function Reveal() {
     | { type: "conflicts" }
     | { type: "restaurants" };
 
+  async function handleEndSession() {
+    setError("");
+    if (!code || !getParticipantName(code)) return;
+    const trimmedName = name.trim();
+    const sessionCode = code.trim().toUpperCase();
+    try {
+      const response = await axios.post(
+        `${API_BASE}/end-session/${sessionCode}`,
+        {
+          host_name: trimmedName,
+        },
+      );
+      if (response.data?.error) {
+        setError(response.data.error);
+        return;
+      }
+      setFlashMessage("Session ended");
+      clearReveal(sessionCode);
+      navigate(`/`);
+    } catch {
+      setError("Failed to end session, try again later");
+    }
+  }
   return (
     <div className="flex flex-col items-center justify-center h-screen">
       {currentSlide.type === "personality" && (
@@ -108,6 +185,12 @@ export default function Reveal() {
             <Button label="←" onClick={() => emblaApi?.scrollPrev()} />
             <Button label="→" onClick={() => emblaApi?.scrollNext()} />
           </div>
+          {name === host && (
+            <div>
+              <Button label="End session" onClick={handleEndSession} />
+              {error && <p className="text-red-600 text-sm">{error}</p>}
+            </div>
+          )}
         </div>
       )}
     </div>
