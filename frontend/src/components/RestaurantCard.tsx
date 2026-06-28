@@ -4,9 +4,13 @@ import useEmblaCarousel from "embla-carousel-react";
 
 type RestaurantCardProps = {
   restaurant: Restaurant;
+  isPrimary?: boolean;
 };
 
-export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
+export default function RestaurantCard({
+  restaurant,
+  isPrimary,
+}: RestaurantCardProps) {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full flex flex-col gap-4">
@@ -34,9 +38,18 @@ export default function RestaurantCard({ restaurant }: RestaurantCardProps) {
           >
             →
           </button>
+          {isPrimary && (
+            <span className="absolute top-3 left-3 bg-green-600 text-white text-sm font-bold px-3 py-1 rounded-full">
+              Best Match!
+            </span>
+          )}
         </div>
       )}
-      <h2 className="text-2xl font-black text-green-800">{restaurant.name}</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-black text-green-800">
+          {restaurant.name}
+        </h2>
+      </div>
       <p className="text-gray-600">{restaurant.reason}</p>
       <a
         href={restaurant.maps_link}

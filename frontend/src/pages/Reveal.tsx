@@ -193,7 +193,7 @@ export default function Reveal() {
                   key={index}
                   className="flex-[0_0_100%] min-w-0 flex justify-center"
                 >
-                  <RestaurantCard restaurant={restaurant} />
+                  <RestaurantCard restaurant={restaurant} isPrimary={index === 0}/>
                 </div>
               ))}
             </div>
