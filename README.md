@@ -6,7 +6,7 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 
 ## Architecture
 
-- `frontend/`: React 19, Vite 8, TypeScript, Tailwind 4, React Router, Axios, Google Maps Places autocomplete, dnd-kit ranking UI, Embla reveal carousel. Hosted on **Vercel** (`frontend/` root).
+- `frontend/`: React 19, Vite 8, TypeScript, Tailwind 4, React Router, Axios, Google Maps Places autocomplete, dnd-kit ranking UI, Embla reveal carousel (outer restaurant slides + inner photo carousel per card). Hosted on **Vercel** (`frontend/` root).
 - `backend/`: FastAPI, Redis session storage, WebSockets, Google Places, Gemini reveal generation, optional Groq fallback. Hosted on **Railway** (`backend/` root) with Railway **Redis**.
 - Redis stores session state with a one-hour TTL.
 - WebSockets broadcast lobby, survey, and reveal events to every connected client in the session.
@@ -27,7 +27,7 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 | Key | File | Restrictions |
 |-----|------|--------------|
 | Browser | `frontend/.env` → `VITE_GOOGLE_MAPS_API_KEY` | Websites: Vercel + `http://localhost:5173/*` |
-| Server | `backend/.env` → `GOOGLE_PLACES_API_KEY` | None — **restart uvicorn** after changing |
+| Server | `backend/.env` → `GOOGLE_PLACES_API_KEY` | None today — restrict to Places Photo Media (+ other required APIs) before public launch; **restart uvicorn** after changing |
 
 If `/test-places` returns `[]`, the backend key is wrong or uvicorn needs a restart.
 
@@ -84,6 +84,7 @@ VITE_API_BASE=http://127.0.0.1:8000
 - `POST /submit-answers/{code}`: stores answers, broadcasts `answer_submitted`, runs reveal pipeline when everyone has submitted; broadcasts `reveal_ready` or `reveal_failed`.
 - `POST /retry-session/{code}`: host-only retry after `reveal_failed`; clears answers, broadcasts `retrying`.
 - `POST /end-session/{code}`: host-only; broadcasts `session_ended`, deletes Redis session.
+- `GET /photo/{place_id}/{index}`: server-side photo proxy (streams Google Places Photo Media; keeps API key off the client).
 - `GET /test-places`: Places smoke test.
 - `GET /test-reveal`: full reveal smoke test with hardcoded sample users.
 - `GET /test-geocode`: geocoding smoke test.
@@ -94,7 +95,7 @@ VITE_API_BASE=http://127.0.0.1:8000
 - `participant_joined`: `{ name, participants }`
 - `session_started`: `{ host, lat, lng, participants }`
 - `answer_submitted`: `{ name, submitted, total }`
-- `reveal_ready`: full reveal payload with personality lines, agreements, conflicts, primary restaurant, and backups.
+- `reveal_ready`: full reveal payload with personality lines, agreements, conflicts, primary restaurant, backups, and optional `photo_urls` per restaurant (served via `/photo/...` proxy).
 - `reveal_failed`: `{ error }`
 - `retrying`: `{ message }`
 - `session_ended`: `{ message }`
@@ -104,7 +105,7 @@ VITE_API_BASE=http://127.0.0.1:8000
 - `/`: create or join a session with validation, loading state, and error handling.
 - `/lobby/:code`: shows participants, lets the host choose a Google Places location, and starts the session.
 - `/survey/:code`: collects hunger, vibe, ranked cuisines, travel distance, and dietary requirements.
-- `/reveal/:code`: personality slides, agreements/conflicts, restaurant carousel; reveal persisted in `sessionStorage`.
+- `/reveal/:code`: personality slides, agreements/conflicts, restaurant carousel with photo carousels per card; reveal persisted in `sessionStorage`.
 
 ## Verification
 
@@ -124,6 +125,7 @@ Backend tests are currently skipped placeholders from the learning phase. They d
 - Reveal payload is in `sessionStorage` only — new tab or cleared storage loses reveal.
 - Survey steps 0–4 reset on refresh (draft answers not persisted).
 - Dev/test endpoints (`/test-places`, etc.) should be removed or protected before a public launch.
+- `GOOGLE_PLACES_API_KEY` is server-side only (photo proxy), but the key has no API restrictions yet — restrict before public launch.
 - Backend tests need to be replaced with real assertions.
 
 See `PROJECT_HANDOFF.md` for full architecture and deployment notes.
