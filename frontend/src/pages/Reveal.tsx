@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import useEmblaCarousel from "embla-carousel-react";
 import Button from "../components/Button";
+import RestaurantCard from "../components/RestaurantCard";
 import {
   getParticipantName,
   getReveal,
@@ -192,22 +193,7 @@ export default function Reveal() {
                   key={index}
                   className="flex-[0_0_100%] min-w-0 flex justify-center"
                 >
-                  <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full flex flex-col gap-4">
-                    {restaurant.photo_url && (
-                      <img className="w-full rounded-xl object-cover h-48" src={`${API_BASE}${restaurant.photo_url}`} />
-                    )}
-                    <h2 className="text-2xl font-black text-green-800">
-                      {restaurant.name}
-                    </h2>
-                    <p className="text-gray-600">{restaurant.reason}</p>
-                    <a
-                      href={restaurant.maps_link}
-                      target="_blank"
-                      className="text-green-700 font-semibold underline"
-                    >
-                      Open in Maps
-                    </a>
-                  </div>
+                  <RestaurantCard restaurant={restaurant} />
                 </div>
               ))}
             </div>
