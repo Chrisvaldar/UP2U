@@ -536,7 +536,7 @@ def rank_restaurants_for_group(
     return sorted(filtered, key=lambda r: r["_group_score"], reverse=True)
 
 
-def get_first_photo_name(place_id: str) -> str | None:
+def get_photo_names(place_id: str, max:int=3) -> list[str] | None:
     try:
         url = f"https://places.googleapis.com/v1/places/{place_id}"
         headers = {
@@ -548,7 +548,7 @@ def get_first_photo_name(place_id: str) -> str | None:
         raw = response.json().get("photos", [])
         if not raw:
             return None
-        return raw[0]["name"]
+        return [p["name"] for p in raw[:max]]
     except:
         return None
 
@@ -561,12 +561,12 @@ def build_photo_media_url(photo_name: str) -> str:
     return url + f"?maxHeightPx={maxHeightPx}&key={key}"
 
 
-@app.get("/photo/{place_id}")
-def get_photo(place_id: str) -> Response:
-    photo_name = get_first_photo_name(place_id)
-    if not photo_name:
+@app.get("/photo/{place_id}/{index}")
+def get_photo(place_id: str, index: int) -> Response:
+    photo_names = get_photo_names(place_id)
+    if not photo_names or index >= len(photo_names):
         raise HTTPException(status_code=404, detail="No photo")
-    url = build_photo_media_url(photo_name)
+    url = build_photo_media_url(photo_names[index])
     raw = requests.get(url)
     media_type = raw.headers["content-type"]
 
@@ -578,18 +578,18 @@ def enrich_reveal_photos(reveal: dict, shortlist: list) -> dict:
     for s in shortlist:
             if r["maps_link"] == s["maps_link"] or r["name"] == s["name"]:
                 place_id = r["maps_link"].split("place_id:")[1]
-                photo_name = get_first_photo_name(place_id)
-                if photo_name:
-                    r["photo_url"] = f"/photo/{place_id}"
+                photo_names = get_photo_names(place_id)
+                if photo_names:
+                    r["photo_urls"] = [f"/photo/{place_id}/{i}" for i in range(len(photo_names))]
                 break
 
     for r in reveal["backups"]:
         for s in shortlist:
             if r["maps_link"] == s["maps_link"] or r["name"] == s["name"]:
                 place_id = r["maps_link"].split("place_id:")[1]
-                photo_name = get_first_photo_name(place_id)
-                if photo_name:
-                    r["photo_url"] = f"/photo/{place_id}"
+                photo_names = get_photo_names(place_id)
+                if photo_names:
+                    r["photo_urls"] = [f"/photo/{place_id}/{i}" for i in range(len(photo_names))]
                 break
     return reveal
 
