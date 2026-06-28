@@ -633,26 +633,31 @@ Your job:
 3. Pick the single best restaurant and hype it up
 4. Provide 2 backup options with punchy reasons
 
-Rules for personality lines:
-- HARD LIMIT: 8-10 words per line. Count words before you write each line.
-- Design short punchy lines on purpose — never write one long sentence that exceeds 10 words.
-- Use \\n in the JSON string to start a new line when you need more than one line.
-- Roast-style but friendly; roast behaviour, not just preferences
+Rules for personality lines, agreements, and conflicts (all use the same newline rules):
+- Each sentence is at most 10 words (count before writing). Emoji counts as part of that sentence — keep emoji at the END of the sentence, same line.
+- A sentence must be complete before you add \\n. NEVER put \\n in the middle of a sentence.
+- NEVER put an emoji alone on its own line. NEVER split "text\\n🌶️" or "word\\nrest of sentence".
+- Use \\n ONLY between separate complete sentences (each ≤10 words).
+- If one sentence is enough, do not add \\n at all.
+- Roast-style but friendly for personality lines; roast behaviour, not preferences
 - Use deadpan humour, not just exclamation marks
 - Talk TO the group directly, not about them
 
-Personality line examples (each line ≤10 words):
+Personality line examples (GOOD — each line is one full sentence):
 - "Someone REALLY needs their Thai fix 🌶️"
 - "Apparently salads count as a meal 🥗"
 - "Would eat anything right now 🤤\\nAbsolutely no standards detected 😌"
 
+Personality line examples (BAD — do not do this):
+- "Would eat anything\\nright now 🤤" (splits mid-sentence)
+- "Thai fix 🌶️\\n🌶️" (emoji alone on a line)
+- "Everyone wants casual vibes and also\\nnobody wants to walk far" (splits one sentence)
+
 Rules for agreements and conflicts:
 - Speak as part of the group — use "everyone", "most of us", "almost everyone"
 - NEVER say "they both" or "they" — you are IN the group
-- Make it fun — add relevant emoji, a joke, a little drama
-- HARD LIMIT: 8-10 words per line. Plan each line to fit — do not write a long sentence and hope it wraps.
-- Use \\n in the JSON string between lines (each line ≤10 words).
-- Example agreements: "Everyone's down for Indian, Mexican, Sri Lankan! 🌶️🌮\\nPlus, nobody's walking far today! 👣"
+- Make it fun — emoji at end of sentence, same line
+- Example agreements: "Everyone's down for Indian and Mexican 🌶️\\nNobody wants to walk far today 👣"
 - Example conflicts: "Half of us want quick bites 🏃\\nThe other half want a vibe 👀"
 
 Rules for primary reason:
@@ -682,9 +687,9 @@ Strict radius:
 
 Return this exact JSON structure:
 {{
-  "personality_lines": {{"name": "line with\\noptional second line"}},
-  "agreements": "line one ≤10 words\\nline two ≤10 words",
-  "conflicts": "line one ≤10 words\\nline two ≤10 words",
+  "personality_lines": {{"name": "one sentence ≤10 words\\noptional second sentence ≤10 words"}},
+  "agreements": "sentence one ≤10 words\\nsentence two ≤10 words",
+  "conflicts": "sentence one ≤10 words\\nsentence two ≤10 words",
   "primary": {{"name": "...", "reason": "...", "maps_link": "..."}},
   "backups": [{{"name": "...", "reason": "...", "maps_link": "..."}}]
 }}"""
@@ -696,8 +701,9 @@ Return this exact JSON structure:
             raw = call_groq(system_prompt, user_prompt)
         else:
             raise
-    print(raw)
-    return parse_reveal_response(raw)
+    reveal = parse_reveal_response(raw)
+    print("[UP2U] reveal object:", json.dumps(reveal, indent=2))
+    return reveal
 
 
 @app.get("/test-reveal")

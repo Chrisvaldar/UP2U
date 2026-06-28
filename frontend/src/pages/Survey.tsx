@@ -131,6 +131,7 @@ export default function Survey() {
               setStep(6);
             }
           } else if (message["type"] == "reveal_ready") {
+            console.log("[UP2U] reveal_ready", message.data);
             saveReveal(code.trim().toUpperCase(), message.data);
             navigate(`/reveal/${code}`, {
               state: { name, reveal: message.data },

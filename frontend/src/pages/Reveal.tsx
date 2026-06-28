@@ -24,6 +24,12 @@ export default function Reveal() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
 
   useEffect(() => {
+    if (reveal) {
+      console.log("[UP2U] reveal (display)", reveal);
+    }
+  }, [reveal]);
+
+  useEffect(() => {
     let cancelled = false;
     let ws: WebSocket | undefined;
 
