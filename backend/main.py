@@ -30,6 +30,7 @@ from google import genai
 from google.genai.errors import ClientError, ServerError
 from groq import Groq
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 import asyncio
 from collections import defaultdict
 
@@ -90,11 +91,14 @@ class SubmitAnswersRequest(BaseModel):
     participant_name: str
     answers: dict
 
+
 class RetrySessionRequest(BaseModel):
     host_name: str
 
+
 class EndSessionRequest(BaseModel):
     host_name: str
+
 
 def session_key(code: str) -> str:
     return f"session:{code}"
@@ -236,9 +240,13 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
             session["status"] = "reveal_failed"
             r.setex(session_key(code), ttl_seconds, json.dumps(session))
             print("Reveal pipeline failed")
-            await manager.broadcast(code, {"type": "reveal_failed", "data": {"error": "Oops! Reveal failed"}})
+            await manager.broadcast(
+                code,
+                {"type": "reveal_failed", "data": {"error": "Oops! Reveal failed"}},
+            )
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
     return session
+
 
 @app.post("/retry-session/{code}")
 async def retry_session(code: str, request: RetrySessionRequest):
@@ -251,13 +259,16 @@ async def retry_session(code: str, request: RetrySessionRequest):
     if request.host_name == session["host"]:
         if session["status"] != "reveal_failed":
             return {"error": "Retry is only available if pipeline fails"}
-        
+
         session["status"] = "active"
         session["answers"] = {}
         r.setex(session_key(code), ttl_seconds, json.dumps(session))
-        await manager.broadcast(code, {"type": "retrying", "data": {"message": "attempting retry"}})
+        await manager.broadcast(
+            code, {"type": "retrying", "data": {"message": "attempting retry"}}
+        )
         return session
     return {"error": "Only the host can retry the session"}
+
 
 @app.post("/end-session/{code}")
 async def end_session(code: str, request: EndSessionRequest):
@@ -267,12 +278,15 @@ async def end_session(code: str, request: EndSessionRequest):
 
     session = json.loads(data)
     if request.host_name == session["host"]:
-        await manager.broadcast(code, {"type": "session_ended", "data": {"message": "end of session"}})
+        await manager.broadcast(
+            code, {"type": "session_ended", "data": {"message": "end of session"}}
+        )
 
         r.delete(session_key(code))
         return session
     return {"error": "Only the host can end the session"}
-    
+
+
 @app.websocket("/ws/{session_code}/{participant_name}")
 async def websocket_endpoint(
     websocket: WebSocket, session_code: str, participant_name: str
@@ -522,6 +536,64 @@ def rank_restaurants_for_group(
     return sorted(filtered, key=lambda r: r["_group_score"], reverse=True)
 
 
+def get_first_photo_name(place_id: str) -> str | None:
+    try:
+        url = f"https://places.googleapis.com/v1/places/{place_id}"
+        headers = {
+            "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+            "X-Goog-FieldMask": "photos",
+        }
+
+        response = requests.get(url, headers=headers)
+        raw = response.json().get("photos", [])
+        if not raw:
+            return None
+        return raw[0]["name"]
+    except:
+        return None
+
+
+def build_photo_media_url(photo_name: str) -> str:
+    maxHeightPx = 400
+    key = GOOGLE_PLACES_API_KEY
+    url = f"https://places.googleapis.com/v1/{photo_name}/media"
+
+    return url + f"?maxHeightPx={maxHeightPx}&key={key}"
+
+
+@app.get("/photo/{place_id}")
+def get_photo(place_id: str) -> Response:
+    photo_name = get_first_photo_name(place_id)
+    if not photo_name:
+        raise HTTPException(status_code=404, detail="No photo")
+    url = build_photo_media_url(photo_name)
+    raw = requests.get(url)
+    media_type = raw.headers["content-type"]
+
+    return Response(content=raw.content, media_type=media_type)
+
+
+def enrich_reveal_photos(reveal: dict, shortlist: list) -> dict:
+    r = reveal["primary"]
+    for s in shortlist:
+            if r["maps_link"] == s["maps_link"] or r["name"] == s["name"]:
+                place_id = r["maps_link"].split("place_id:")[1]
+                photo_name = get_first_photo_name(place_id)
+                if photo_name:
+                    r["photo_url"] = f"/photo/{place_id}"
+                break
+
+    for r in reveal["backups"]:
+        for s in shortlist:
+            if r["maps_link"] == s["maps_link"] or r["name"] == s["name"]:
+                place_id = r["maps_link"].split("place_id:")[1]
+                photo_name = get_first_photo_name(place_id)
+                if photo_name:
+                    r["photo_url"] = f"/photo/{place_id}"
+                break
+    return reveal
+
+
 def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) -> dict:
     radius = get_search_radius(users)
     restaurants = get_nearby_restaurants(latitude, longitude, 2000)
@@ -702,6 +774,7 @@ Return this exact JSON structure:
         else:
             raise
     reveal = parse_reveal_response(raw)
+    reveal = enrich_reveal_photos(reveal, restaurants)
     print("[UP2U] reveal object:", json.dumps(reveal, indent=2))
     return reveal
 
