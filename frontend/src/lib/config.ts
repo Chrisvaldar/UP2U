@@ -1,4 +1,6 @@
-export const API_BASE =
+const rawBase =
   import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+
+export const API_BASE = rawBase.replace(/\/+$/, "");
 
 export const WS_BASE = API_BASE.replace(/^http/, "ws");
