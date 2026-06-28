@@ -93,6 +93,14 @@ export default function Reveal() {
     return () => clearTimeout(timer);
   }, [step, reveal, restaurantsSlideIndex]);
 
+  function renderLines(text: string, className: string) {
+    return text.split("\n").map((line, i) => (
+      <p key={i} className={className}>
+        {line}
+      </p>
+    ));
+  }
+
   if (!reveal) return null;
 
   const slides = [
@@ -142,23 +150,25 @@ export default function Reveal() {
           <h2 className="text-4xl font-black text-green-800">
             {currentSlide.person}
           </h2>
-          <p className="text-xl text-gray-600 max-w-md whitespace-pre-line">
-            {currentSlide.line}
-          </p>
+          <div className="text-xl text-gray-600 max-w-lg text-center">
+            {renderLines(currentSlide.line, "mb-2 last:mb-0")}
+          </div>
         </div>
       )}
       {currentSlide.type === "agreements" && (
-        <div className="max-w-md text-center px-6">
-          <h2 className="text-3xl font-black text-green-800 whitespace-pre-line">
-            {reveal.agreements}
-          </h2>
+        <div className="max-w-lg text-center px-6 flex flex-col gap-3">
+          {renderLines(
+            reveal.agreements,
+            "text-3xl font-black text-green-800",
+          )}
         </div>
       )}
       {currentSlide.type === "conflicts" && (
-        <div className="max-w-md text-center px-6">
-          <h2 className="text-3xl font-black text-green-800 whitespace-pre-line">
-            {reveal.conflicts}
-          </h2>
+        <div className="max-w-lg text-center px-6 flex flex-col gap-3">
+          {renderLines(
+            reveal.conflicts,
+            "text-3xl font-black text-green-800",
+          )}
         </div>
       )}
       {currentSlide.type === "restaurants" && (
