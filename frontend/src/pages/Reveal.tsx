@@ -150,25 +150,34 @@ export default function Reveal() {
           <h2 className="text-4xl font-black text-green-800">
             {currentSlide.person}
           </h2>
-          <div className="text-xl text-gray-600 max-w-lg text-center">
-            {renderLines(currentSlide.line, "mb-2 last:mb-0")}
+          <div className="max-w-2xl px-6 text-center">
+            {renderLines(
+              currentSlide.line,
+              "text-xl text-gray-600 text-balance leading-snug mb-2 last:mb-0",
+            )}
           </div>
         </div>
       )}
       {currentSlide.type === "agreements" && (
-        <div className="max-w-lg text-center px-6 flex flex-col gap-3">
-          {renderLines(
-            reveal.agreements,
-            "text-3xl font-black text-green-800",
-          )}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h2 className="text-4xl font-black text-green-800">Agreements</h2>
+          <div className="max-w-2xl px-6 text-center">
+            {renderLines(
+              reveal.agreements,
+              "text-xl text-gray-600 text-balance leading-snug mb-2 last:mb-0",
+            )}
+          </div>
         </div>
       )}
       {currentSlide.type === "conflicts" && (
-        <div className="max-w-lg text-center px-6 flex flex-col gap-3">
-          {renderLines(
-            reveal.conflicts,
-            "text-3xl font-black text-green-800",
-          )}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h2 className="text-4xl font-black text-green-800">Conflicts</h2>
+          <div className="max-w-2xl px-6 text-center">
+            {renderLines(
+              reveal.conflicts,
+              "text-xl text-gray-600 text-balance leading-snug mb-2 last:mb-0",
+            )}
+          </div>
         </div>
       )}
       {currentSlide.type === "restaurants" && (
