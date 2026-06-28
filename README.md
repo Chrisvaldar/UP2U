@@ -22,7 +22,14 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 
 **Railway env vars:** `REDIS_URL` (reference from Redis service), `GOOGLE_PLACES_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` (optional)
 
-**Google Maps API key:** HTTP referrer restrictions only apply to browser calls (Vercel). Railway calls Places from the server with no referrer — use a separate unrestricted server key, or one shared key with **Application restrictions: None** (friends-beta shortcut).
+**Google Maps API keys (two keys recommended):**
+
+| Key | File | Restrictions |
+|-----|------|--------------|
+| Browser | `frontend/.env` → `VITE_GOOGLE_MAPS_API_KEY` | Websites: Vercel + `http://localhost:5173/*` |
+| Server | `backend/.env` → `GOOGLE_PLACES_API_KEY` | None — **restart uvicorn** after changing |
+
+If `/test-places` returns `[]`, the backend key is wrong or uvicorn needs a restart.
 
 ## Local Setup
 
