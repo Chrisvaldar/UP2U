@@ -2,7 +2,7 @@ export type Restaurant = {
     name: string;
     reason: string;
     maps_link: string;
-    photo_url?: string;
+    photo_urls?: string[];
   };
   
 export type RevealData = {
