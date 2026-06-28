@@ -22,7 +22,7 @@ export default function Reveal() {
     useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
   const [host, setHost] = useState("");
   const [error, setError] = useState("");
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
 
   useEffect(() => {
     if (reveal) {
