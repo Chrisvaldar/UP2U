@@ -14,19 +14,19 @@ export type RevealData = {
   };
 
 export function saveParticipantName(code: string, name: string) {
-    sessionStorage.setItem(`up2u:${code}:name`, name);
+    sessionStorage.setItem(`up2u:${code.toUpperCase()}:name`, name);
   }
 
 export function getParticipantName(code: string){
-    return sessionStorage.getItem(`up2u:${code}:name`)
+    return sessionStorage.getItem(`up2u:${code.toUpperCase()}:name`)
 }
 
 export function saveReveal(code: string, reveal: RevealData){
-    sessionStorage.setItem(`up2u:${code}:reveal`, JSON.stringify(reveal))
+    sessionStorage.setItem(`up2u:${code.toUpperCase()}:reveal`, JSON.stringify(reveal))
 }
 
 export function getReveal(code: string){
-    const reveal = sessionStorage.getItem(`up2u:${code}:reveal`)
+    const reveal = sessionStorage.getItem(`up2u:${code.toUpperCase()}:reveal`)
     if (!reveal){
         return
     }
@@ -34,7 +34,7 @@ export function getReveal(code: string){
 }
 
 export function clearReveal(code: string){
-    sessionStorage.removeItem(`up2u:${code}:reveal`);
+    sessionStorage.removeItem(`up2u:${code.toUpperCase()}:reveal`);
 }
 
 export function setFlashMessage(message: string) {
