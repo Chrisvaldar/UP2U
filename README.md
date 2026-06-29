@@ -20,7 +20,9 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 
 **Vercel env vars:** `VITE_API_BASE` (Railway URL, **no trailing slash**), `VITE_GOOGLE_MAPS_API_KEY`
 
-**Railway env vars:** `REDIS_URL` (reference from Redis service), `GOOGLE_PLACES_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` (optional)
+**Railway env vars:** `REDIS_URL` (reference from Redis service), `GOOGLE_PLACES_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` (optional). Do not set `DEBUG` in production.
+
+**CORS:** Backend allows `https://up2u-app.vercel.app` and local Vite dev origins only.
 
 **Google Maps API keys (two keys recommended):**
 
@@ -29,7 +31,7 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 | Browser | `frontend/.env` → `VITE_GOOGLE_MAPS_API_KEY` | Websites: Vercel + `http://localhost:5173/*` |
 | Server | `backend/.env` → `GOOGLE_PLACES_API_KEY` | None today — restrict to Places Photo Media (+ other required APIs) before public launch; **restart uvicorn** after changing |
 
-If `/test-places` returns `[]`, the backend key is wrong or uvicorn needs a restart.
+If `/test-places` returns 404, set `DEBUG=true`. If it returns `[]`, the backend key is wrong or uvicorn needs a restart.
 
 ## Local Setup
 
@@ -63,6 +65,7 @@ REDIS_URL=redis://localhost:6379
 GOOGLE_PLACES_API_KEY=
 GEMINI_API_KEY=
 GROQ_API_KEY=
+DEBUG=true
 ```
 
 Frontend env vars:
@@ -85,9 +88,7 @@ VITE_API_BASE=http://127.0.0.1:8000
 - `POST /retry-session/{code}`: host-only retry after `reveal_failed`; clears answers, broadcasts `retrying`.
 - `POST /end-session/{code}`: host-only; broadcasts `session_ended`, deletes Redis session.
 - `GET /photo/{place_id}/{index}`: server-side photo proxy (streams Google Places Photo Media; keeps API key off the client).
-- `GET /test-places`: Places smoke test.
-- `GET /test-reveal`: full reveal smoke test with hardcoded sample users.
-- `GET /test-geocode`: geocoding smoke test.
+- `GET /test-places`, `GET /test-reveal`, `GET /test-geocode`: dev smoke tests (require `DEBUG=true`; 404 otherwise).
 - `WS /ws/{session_code}/{participant_name}`: live session event stream.
 
 ## WebSocket Events
@@ -124,8 +125,9 @@ Backend tests are currently skipped placeholders from the learning phase. They d
 - WebSocket connections are in-memory and are not multi-instance safe (single Railway instance is fine for friends beta).
 - Reveal payload is in `sessionStorage` only — new tab or cleared storage loses reveal.
 - Survey steps 0–4 reset on refresh (draft answers not persisted).
-- Dev/test endpoints (`/test-places`, etc.) should be removed or protected before a public launch.
 - `GOOGLE_PLACES_API_KEY` is server-side only (photo proxy), but the key has no API restrictions yet — restrict before public launch.
 - Backend tests need to be replaced with real assertions.
+
+Backend logs session lifecycle, reveal success/failure, Places errors, and AI JSON parse failures via Python `logging` (INFO level). See `PROJECT_HANDOFF.md` §7.12 for the full call map.
 
 See `PROJECT_HANDOFF.md` for full architecture and deployment notes.
