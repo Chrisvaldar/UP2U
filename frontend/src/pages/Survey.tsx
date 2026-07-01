@@ -7,12 +7,18 @@ import SortableItem from "@/components/SortableItem";
 import { DragDropProvider } from "@dnd-kit/react";
 import { move } from "@dnd-kit/helpers";
 import { API_BASE, WS_BASE } from "@/lib/config";
-import { getParticipantName, saveReveal, clearReveal, setFlashMessage } from "@/lib/session";
+import {
+  getParticipantName,
+  saveReveal,
+  clearReveal,
+  setFlashMessage,
+} from "@/lib/session";
 import ErrorMessage from "../components/ErrorMessage";
 
 export default function Survey() {
   const { code } = useParams();
-  const name = useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
+  const name =
+    useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
   const [host, setHost] = useState("");
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
@@ -66,18 +72,18 @@ export default function Survey() {
           dietary: dietary.map((d) => d.toLowerCase()),
         },
       });
-      if (response.data?.error) {
-        setError(response.data.error);
-        return;
-      }
 
       if (submitted.length + 1 >= total) {
         setStep(6);
       } else {
         setStep(5);
       }
-    } catch {
-      setError("Could not submit your answers. Try again.");
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Could not submit your answers. Try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -93,10 +99,6 @@ export default function Survey() {
       try {
         const session = await axios.get(`${API_BASE}/session/${code}`);
         if (cancelled) return;
-        if (session.data?.error) {
-          setError("Session not found. Check the code and try again.");
-          return;
-        }
 
         const status = session.data.status;
         setHost(session.data.host);
@@ -139,12 +141,12 @@ export default function Survey() {
           } else if (message["type"] == "reveal_failed") {
             setError(message.data.error);
             setStep(7);
-          }
-          else if (message["type"] == "retrying"){
+          } else if (message["type"] == "retrying") {
             clearReveal(code.trim().toUpperCase());
-            navigate(`/lobby/${code.trim().toUpperCase()}`, { state: { name: name.trim() } });
-          }
-          else if (message["type"] == "session_ended"){
+            navigate(`/lobby/${code.trim().toUpperCase()}`, {
+              state: { name: name.trim() },
+            });
+          } else if (message["type"] == "session_ended") {
             setFlashMessage("Session ended");
             clearReveal(code.trim().toUpperCase());
             navigate(`/`);
@@ -153,8 +155,10 @@ export default function Survey() {
         ws.onerror = () => {
           setError("Lost the live survey connection. Refresh to reconnect.");
         };
-      } catch {
-        if (!cancelled) {
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+          setError(err.response.data.detail);
+        } else {
           setError(
             "Could not load the survey. Check that the backend is running.",
           );
@@ -191,22 +195,21 @@ export default function Survey() {
     if (!code || !getParticipantName(code)) return;
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
-    try{
+    try {
       const response = await axios.post(
         `${API_BASE}/retry-session/${sessionCode}`,
         {
           host_name: trimmedName,
         },
       );
-      if (response.data?.error) {
-        setError(response.data.error);
-        return;
-      }
       clearReveal(sessionCode);
       navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
-    }
-    catch{
-      setError("Failed to retry, try again later")
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Failed to retry, try again later.");
+      }
     }
   }
 
@@ -214,23 +217,22 @@ export default function Survey() {
     if (!code || !getParticipantName(code)) return;
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
-    try{
+    try {
       const response = await axios.post(
         `${API_BASE}/end-session/${sessionCode}`,
         {
           host_name: trimmedName,
         },
       );
-      if (response.data?.error) {
-        setError(response.data.error);
-        return;
-      }
       setFlashMessage("Session ended");
-      clearReveal(sessionCode)
+      clearReveal(sessionCode);
       navigate(`/`);
-    }
-    catch{
-      setError("Failed to end session, try again later")
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Failed to end session, try again later");
+      }
     }
   }
 
