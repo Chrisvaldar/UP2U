@@ -585,7 +585,10 @@ def get_nearby_restaurants(
 def test_places(radius: float = 500):
     if not DEBUG:
         raise HTTPException(status_code=404, detail="Dev endpoint: Not found")
-    return get_nearby_restaurants(-37.8136, 144.9631, radius)
+    try:
+        return get_nearby_restaurants(-37.8136, 144.9631, radius)
+    except UpstreamError as e:
+        raise upstream_to_http(e)
 
 
 def rank_restaurants_for_group(
@@ -914,7 +917,10 @@ def test_reveal():
             "dietary": ["vegetarian"],
         },
     ]
-    return run_reveal_pipeline(users, -37.8136, 144.9631)
+    try:
+        return run_reveal_pipeline(users, -37.8136, 144.9631)
+    except UpstreamError as e:
+        raise upstream_to_http(e)
 
 
 def geocode_location(address: str) -> tuple[float, float]:
@@ -928,7 +934,21 @@ def geocode_location(address: str) -> tuple[float, float]:
         raise ValueError("Address is required")
 
     url = f"https://geocode.googleapis.com/v4/geocode/address/{quote(address)}"
-    response = requests.get(url, headers={"X-Goog-Api-Key": GOOGLE_PLACES_API_KEY})
+    try:
+        response = requests.get(
+            url,
+            headers={"X-Goog-Api-Key": GOOGLE_PLACES_API_KEY},
+            timeout=UPSTREAM_TIMEOUT_SEC,
+        )
+    except requests.Timeout as e:
+        raise UpstreamTimeout("geocode address timed out") from e
+    except requests.ConnectionError as e:
+        raise UpstreamUnavailable("geocode address unreachable") from e
+
+    if response.status_code != 200:
+        logger.error(f"Geocode failed with code {response.status_code}")
+        raise UpstreamBadResponse(f"geocode status={response.status_code}")
+
     data = response.json()
     results = data.get("results", [])
     if not results:
@@ -942,7 +962,12 @@ def geocode_location(address: str) -> tuple[float, float]:
 def test_geocode(address: str = "Federation Square, Melbourne"):
     if not DEBUG:
         raise HTTPException(status_code=404, detail="Dev endpoint: Not found")
-    lat, lng = geocode_location(address)
+    try:
+        lat, lng = geocode_location(address)
+    except UpstreamError as e:
+        raise upstream_to_http(e)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="No geocoding results for that address.")
     return {"address": address, "latitude": lat, "longitude": lng}
 
 
