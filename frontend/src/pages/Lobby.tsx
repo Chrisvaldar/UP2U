@@ -9,7 +9,8 @@ import ErrorMessage from "../components/ErrorMessage";
 
 export default function Lobby() {
   const { code } = useParams();
-  const name = useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
+  const name =
+    useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
   const [host, setHost] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [lat, setLat] = useState<number | null>(null);
@@ -36,10 +37,6 @@ export default function Lobby() {
       try {
         const session = await axios.get(`${API_BASE}/session/${code}`);
         if (cancelled) return;
-        if (session.data?.error) {
-          setError("Session not found. Check the code and try again.");
-          return;
-        }
 
         setHost(session.data.host);
         setParticipants(session.data.participants ?? []);
@@ -57,8 +54,10 @@ export default function Lobby() {
         ws.onerror = () => {
           setError("Lost the live lobby connection. Refresh to reconnect.");
         };
-      } catch {
-        if (!cancelled) {
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+          setError(err.response.data.detail);
+        } else {
           setError(
             "Could not load the session. Check that the backend is running.",
           );
@@ -93,12 +92,12 @@ export default function Lobby() {
         lat,
         lng,
       });
-      if (response.data?.error) {
-        setError(response.data.error);
-        setStarting(false);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Could not start the session. Try again.");
       }
-    } catch {
-      setError("Could not start the session. Try again.");
       setStarting(false);
     }
   }
