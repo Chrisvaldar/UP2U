@@ -49,6 +49,7 @@ Frontend:
 ```powershell
 cd frontend
 npm install
+copy .env.example .env
 npm.cmd run dev
 ```
 
