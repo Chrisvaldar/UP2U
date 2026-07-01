@@ -214,6 +214,7 @@ export default function Survey() {
   }
 
   async function handleEndSession() {
+    setError("");
     if (!code || !getParticipantName(code)) return;
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
