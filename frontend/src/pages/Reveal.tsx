@@ -123,7 +123,7 @@ export default function Reveal() {
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
     try {
-      const response = await axios.post(
+      await axios.post(
         `${API_BASE}/end-session/${sessionCode}`,
         {
           host_name: trimmedName,

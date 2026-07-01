@@ -87,7 +87,7 @@ export default function Lobby() {
     setStarting(true);
     setError("");
     try {
-      const response = await axios.post(`${API_BASE}/start-session/${code}`, {
+      await axios.post(`${API_BASE}/start-session/${code}`, {
         host_name: name.trim(),
         lat,
         lng,

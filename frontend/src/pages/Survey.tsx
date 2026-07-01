@@ -62,7 +62,7 @@ export default function Survey() {
     setSubmitting(true);
     setError("");
     try {
-      const response = await axios.post(`${API_BASE}/submit-answers/${code}`, {
+      await axios.post(`${API_BASE}/submit-answers/${code}`, {
         participant_name: name.trim(),
         answers: {
           hunger: hunger,
@@ -198,7 +198,7 @@ export default function Survey() {
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
     try {
-      const response = await axios.post(
+      await axios.post(
         `${API_BASE}/retry-session/${sessionCode}`,
         {
           host_name: trimmedName,
@@ -221,7 +221,7 @@ export default function Survey() {
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
     try {
-      const response = await axios.post(
+      await axios.post(
         `${API_BASE}/end-session/${sessionCode}`,
         {
           host_name: trimmedName,
