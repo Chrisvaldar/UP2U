@@ -517,7 +517,7 @@ def get_nearby_restaurants(
     response = requests.post(url, headers=headers, json=body)
     if response.status_code != 200:
         logger.error(
-            f"Getting restaurants failed with code {response.status_code} and body: {response.text}"
+            f"Getting restaurants failed with code {response.status_code} and body: {truncate_log(response.text)}"
         )
     raw = response.json().get("places", [])
     restaurants = clean_restaurants(raw, latitude, longitude)
@@ -695,7 +695,7 @@ def parse_reveal_response(raw: str) -> dict:
                 raw = raw[4:]
         return json.loads(raw.strip())
     except json.JSONDecodeError:
-        logger.error(f"Failed to parse reveal JSON: {raw}")
+        logger.error(f"Failed to parse reveal JSON: {truncate_log(raw)}")
         raise
 
 
@@ -855,3 +855,9 @@ def test_geocode(address: str = "Federation Square, Melbourne"):
         raise HTTPException(status_code=404, detail="Dev endpoint: Not found")
     lat, lng = geocode_location(address)
     return {"address": address, "latitude": lat, "longitude": lng}
+
+
+def truncate_log(text: str, max_len: int = 80) -> str:
+    if len(text) <= max_len:
+        return text
+    return f"Output ({max_len}/{len(text)} char): " + text[:max_len]
