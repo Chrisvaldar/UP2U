@@ -18,8 +18,19 @@ import asyncio
 from collections import defaultdict
 from fastapi import HTTPException
 import logging
+from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
+LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -125,7 +136,7 @@ def create_session(request: CreateSessionRequest):
 def get_session(code: str):
     data = r.get(session_key(code))
     if data is None:
-        return {"error": "session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
     return json.loads(data)
 
 
@@ -133,7 +144,7 @@ def get_session(code: str):
 async def join_session(request: JoinSessionRequest, code: str):
     data = r.get(session_key(code))
     if data is None:
-        return {"error": "session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(data)
     # Preserve the original expiry so normal activity does not extend a session.
@@ -141,7 +152,7 @@ async def join_session(request: JoinSessionRequest, code: str):
 
     if session["status"] == "revealing" or session["status"] == "reveal_failed":
         logger.warning(f"Join rejected for {code}: session status is {session['status']}")
-        return {"error": "Uh oh! The group has decided already :("}
+        raise HTTPException(status_code=409, detail="Uh oh! The group has decided already :(")
     session["participants"].append(request.participant_name)
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
 
@@ -163,7 +174,7 @@ async def join_session(request: JoinSessionRequest, code: str):
 async def start_session(request: StartSessionRequest, code: str):
     data = r.get(session_key(code))
     if data is None:
-        return {"error": "session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
     session = json.loads(data)
     ttl_seconds = r.ttl(session_key(code))
 
@@ -192,21 +203,21 @@ async def start_session(request: StartSessionRequest, code: str):
         logger.info(f"Session {code} started by {request.host_name} at ({request.lat}, {request.lng}) → cuisines: {cuisines}")
         return session
 
-    return {"error": "Only the host can start the session"}
+    raise HTTPException(status_code=403, detail="Only the host can start the session.")
 
 
 @app.post("/submit-answers/{code}")
 async def submit_answers(request: SubmitAnswersRequest, code: str):
     data = r.get(session_key(code))
     if data is None:
-        return {"error": "session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(data)
     # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = r.ttl(session_key(code))
 
     if request.participant_name not in session["participants"]:
-        return {"error": "Participant not found"}
+        raise HTTPException(status_code=404, detail="Participant not found")
     session["answers"][request.participant_name] = request.answers
 
     await manager.broadcast(
@@ -248,13 +259,13 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 async def retry_session(code: str, request: RetrySessionRequest):
     data = r.get(session_key(code))
     if data is None:
-        return {"error": "session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(data)
     ttl_seconds = r.ttl(session_key(code))
     if request.host_name == session["host"]:
         if session["status"] != "reveal_failed":
-            return {"error": "Retry is only available if pipeline fails"}
+            raise HTTPException(status_code=409, detail="Retry is only available if pipeline fails")
 
         session["status"] = "active"
         session["answers"] = {}
@@ -263,14 +274,14 @@ async def retry_session(code: str, request: RetrySessionRequest):
             code, {"type": "retrying", "data": {"message": "attempting retry"}}
         )
         return session
-    return {"error": "Only the host can retry the session"}
+    raise HTTPException(status_code=403, detail="Only the host can retry the session.")
 
 
 @app.post("/end-session/{code}")
 async def end_session(code: str, request: EndSessionRequest):
     data = r.get(session_key(code))
     if data is None:
-        return {"error": "session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(data)
     if request.host_name == session["host"]:
@@ -280,7 +291,7 @@ async def end_session(code: str, request: EndSessionRequest):
 
         r.delete(session_key(code))
         return session
-    return {"error": "Only the host can end the session"}
+    raise HTTPException(status_code=403, detail="Only the host can end the session.")
 
 
 @app.websocket("/ws/{session_code}/{participant_name}")
