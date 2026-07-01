@@ -79,14 +79,16 @@ VITE_API_BASE=http://127.0.0.1:8000
 
 ## Backend API
 
+Session business errors use FastAPI `HTTPException` — response body `{"detail": "<message>"}` with status **404** (not found), **403** (host-only), or **409** (state conflict). The frontend reads `err.response.data.detail` in axios catch blocks.
+
 - `GET /`: health check.
 - `POST /create-session`: creates a session and returns `{ "code": "ABC123" }`.
-- `GET /session/{code}`: returns session JSON or `{ "error": "session not found" }`.
-- `POST /join-session/{code}`: adds a participant and broadcasts `participant_joined`.
-- `POST /start-session/{code}`: host-only start using `host_name`, `lat`, and `lng`; broadcasts `session_started`.
-- `POST /submit-answers/{code}`: stores answers, broadcasts `answer_submitted`, runs reveal pipeline when everyone has submitted; broadcasts `reveal_ready` or `reveal_failed`.
-- `POST /retry-session/{code}`: host-only retry after `reveal_failed`; clears answers, broadcasts `retrying`.
-- `POST /end-session/{code}`: host-only; broadcasts `session_ended`, deletes Redis session.
+- `GET /session/{code}`: returns session JSON; **404** if missing.
+- `POST /join-session/{code}`: adds a participant and broadcasts `participant_joined`; **404** if missing, **409** if session is `revealing` or `reveal_failed`.
+- `POST /start-session/{code}`: host-only start using `host_name`, `lat`, and `lng`; broadcasts `session_started`; **403** if not host.
+- `POST /submit-answers/{code}`: stores answers, broadcasts `answer_submitted`, runs reveal pipeline when everyone has submitted; broadcasts `reveal_ready` or `reveal_failed` (WebSocket); **404** if session or participant not found.
+- `POST /retry-session/{code}`: host-only retry after `reveal_failed`; clears answers, broadcasts `retrying`; **403** / **409** as applicable.
+- `POST /end-session/{code}`: host-only; broadcasts `session_ended`, deletes Redis session; **403** if not host.
 - `GET /photo/{place_id}/{index}`: server-side photo proxy (streams Google Places Photo Media; keeps API key off the client).
 - `GET /test-places`, `GET /test-reveal`, `GET /test-geocode`: dev smoke tests (require `DEBUG=true`; 404 otherwise).
 - `WS /ws/{session_code}/{participant_name}`: live session event stream.
