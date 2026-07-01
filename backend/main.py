@@ -11,7 +11,7 @@ import requests
 from urllib.parse import quote
 from google import genai
 from google.genai.errors import ClientError, ServerError
-from groq import Groq
+from groq import Groq, APIError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 import asyncio
@@ -755,28 +755,34 @@ def _gemini_is_rate_limited(exc: Exception) -> bool:
 
 
 def call_gemini(system_prompt: str, user_prompt: str) -> str:
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            config={"system_instruction": system_prompt},
-            contents=user_prompt,
-        )
-        return response.text.strip()
-    except Exception:
-        raise
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        config={"system_instruction": system_prompt},
+        contents=user_prompt,
+    )
+    return response.text.strip()
 
 
 def call_groq(system_prompt: str, user_prompt: str) -> str:
-    client = Groq(api_key=GROQ_API_KEY)
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        return response.choices[0].message.content.strip()
+    except APIError as e:
+        status = getattr(e, "status_code", None)
+        logger.exception(f"Groq call failed status={status}")
+
+        # 429 = rate limited, 503 = temporarily overloaded
+        if status in (429, 503):
+            raise UpstreamUnavailable(f"groq status={status}") from e
+        raise UpstreamBadResponse(f"groq status={status}") from e
 
 
 def parse_reveal_response(raw: str) -> dict:
@@ -786,9 +792,9 @@ def parse_reveal_response(raw: str) -> dict:
             if raw.startswith("json"):
                 raw = raw[4:]
         return json.loads(raw.strip())
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         logger.error(f"Failed to parse reveal JSON: {truncate_log(raw)}")
-        raise
+        raise UpstreamBadResponse("reveal AI returned invalid JSON") from e
 
 
 def generate_reveal(users: list[dict], restaurants: list[dict], strict_radius: int):
@@ -888,7 +894,12 @@ Return this exact JSON structure:
             logger.warning(f"Gemini rate limited ({e.code}), falling back to Groq")
             raw = call_groq(system_prompt, user_prompt)
         else:
-            raise
+            logger.exception(f"Gemini call failed code={e.code}")
+
+            # 429 = rate limited, 503 = temporarily overloaded
+            if e.code in (429, 503):
+                raise UpstreamUnavailable(f"gemini status={e.code}") from e
+            raise UpstreamBadResponse(f"gemini status={e.code}") from e
     reveal = parse_reveal_response(raw)
     reveal = enrich_reveal_photos(reveal, restaurants)
     return reveal
