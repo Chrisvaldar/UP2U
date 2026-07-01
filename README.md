@@ -31,7 +31,7 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 | Browser | `frontend/.env` → `VITE_GOOGLE_MAPS_API_KEY` | Websites: Vercel + `http://localhost:5173/*` |
 | Server | `backend/.env` → `GOOGLE_PLACES_API_KEY` | None today — restrict to Places Photo Media (+ other required APIs) before public launch; **restart uvicorn** after changing |
 
-If `/test-places` returns 404, set `DEBUG=true`. If it returns `[]`, the backend key is wrong or uvicorn needs a restart.
+If `/test-places` returns 404, set `DEBUG=true`. A bad server key returns **502** (not silent `[]`). Legitimate empty search returns `[]` with **200**.
 
 ## Local Setup
 
@@ -80,18 +80,20 @@ VITE_API_BASE=http://127.0.0.1:8000
 
 ## Backend API
 
-Session business errors use FastAPI `HTTPException` — response body `{"detail": "<message>"}` with status **404** (not found), **403** (host-only), or **409** (state conflict). The frontend reads `err.response.data.detail` in axios catch blocks.
+**Session errors:** `HTTPException` with `{"detail": "<message>"}` — **404** (not found), **403** (host-only), **409** (state conflict). Frontend reads `err.response.data.detail` in axios `catch` blocks.
+
+**Upstream errors:** Google Places, Geocoding, and AI failures map to **502** (bad upstream response), **503** (unavailable / rate-limited), **504** (timeout) via `upstream_to_http()`. Generic client messages; full detail is server-logged only.
 
 - `GET /`: health check.
 - `POST /create-session`: creates a session and returns `{ "code": "ABC123" }`.
 - `GET /session/{code}`: returns session JSON; **404** if missing.
 - `POST /join-session/{code}`: adds a participant and broadcasts `participant_joined`; **404** if missing, **409** if session is `revealing` or `reveal_failed`.
-- `POST /start-session/{code}`: host-only start using `host_name`, `lat`, and `lng`; broadcasts `session_started`; **403** if not host.
-- `POST /submit-answers/{code}`: stores answers, broadcasts `answer_submitted`, runs reveal pipeline when everyone has submitted; broadcasts `reveal_ready` or `reveal_failed` (WebSocket); **404** if session or participant not found.
+- `POST /start-session/{code}`: host-only; fetches nearby cuisines via Places; broadcasts `session_started`; **403** if not host; **502/503/504** if Places fails (empty `cuisines` on successful zero-result search is still **200**).
+- `POST /submit-answers/{code}`: stores answers, broadcasts `answer_submitted`, runs reveal pipeline when everyone has submitted; **404** if session or participant not found. Pipeline failure → **HTTP 200** + `status: reveal_failed` + WebSocket `reveal_failed` (not 502).
 - `POST /retry-session/{code}`: host-only retry after `reveal_failed`; clears answers, broadcasts `retrying`; **403** / **409** as applicable.
 - `POST /end-session/{code}`: host-only; broadcasts `session_ended`, deletes Redis session; **403** if not host.
-- `GET /photo/{place_id}/{index}`: server-side photo proxy (streams Google Places Photo Media; keeps API key off the client).
-- `GET /test-places`, `GET /test-reveal`, `GET /test-geocode`: dev smoke tests (require `DEBUG=true`; 404 otherwise).
+- `GET /photo/{place_id}/{index}`: server-side photo proxy; **404** if no photo at index; **502/503/504** on upstream fetch failure.
+- `GET /test-places`, `GET /test-reveal`, `GET /test-geocode`: dev smoke tests (`DEBUG=true`; **404** when disabled; propagate **502/503/504** on upstream failure).
 - `WS /ws/{session_code}/{participant_name}`: live session event stream.
 
 ## WebSocket Events
@@ -131,6 +133,6 @@ Backend tests are currently skipped placeholders from the learning phase. They d
 - `GOOGLE_PLACES_API_KEY` is server-side only (photo proxy), but the key has no API restrictions yet — restrict before public launch.
 - Backend tests need to be replaced with real assertions.
 
-Backend logs session lifecycle, reveal success/failure, Places errors, and AI JSON parse failures via Python `logging` (INFO level). See `PROJECT_HANDOFF.md` §7.12 for the full call map.
+Backend logs session lifecycle, reveal success/failure (typed `UpstreamError` vs unexpected exceptions), Places/photo/geocode errors, and AI JSON parse failures via Python `logging`. See `PROJECT_HANDOFF.md` §7.12 for the full call map.
 
 See `PROJECT_HANDOFF.md` for full architecture and deployment notes.
