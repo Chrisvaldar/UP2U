@@ -294,6 +294,16 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
             logger.info(
                 f"Reveal succeeded for {code} → primary: {reveal['primary']['name']}, backups: {[b['name'] for b in reveal['backups']]}"
             )
+        except UpstreamError as e:
+            session["status"] = "reveal_failed"
+            r.setex(session_key(code), ttl_seconds, json.dumps(session))
+            logger.error(
+                f"Reveal pipeline failed for session {code}: {type(e).__name__}: {e}"
+            )
+            await manager.broadcast(
+                code,
+                {"type": "reveal_failed", "data": {"error": "Oops! Reveal failed"}},
+            )
         except Exception:
             session["status"] = "reveal_failed"
             r.setex(session_key(code), ttl_seconds, json.dumps(session))
