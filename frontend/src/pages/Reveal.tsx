@@ -25,7 +25,7 @@ export default function Reveal() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
 
   useEffect(() => {
-    if (reveal) {
+    if (reveal && import.meta.env.DEV) {
       console.log("[UP2U] reveal (display)", reveal);
     }
   }, [reveal]);
