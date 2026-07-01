@@ -29,13 +29,12 @@ DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
-handlers=[
-        
-        logging.StreamHandler(),
-    ]
+handlers = [
+    logging.StreamHandler(),
+]
 if DEBUG:
     LOG_DIR.mkdir(exist_ok=True)
-    handlers.append(logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8"))    
+    handlers.append(logging.FileHandler(LOG_DIR / "app.log", encoding="utf-8"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -108,6 +107,43 @@ class EndSessionRequest(BaseModel):
     host_name: str
 
 
+UPSTREAM_TIMEOUT_SEC = 10
+
+
+class UpstreamError(Exception):
+    pass
+
+
+class UpstreamTimeout(UpstreamError):
+    pass
+
+
+class UpstreamUnavailable(UpstreamError):
+    pass
+
+
+class UpstreamBadResponse(UpstreamError):
+    pass
+
+
+def upstream_to_http(exc: UpstreamError) -> HTTPException:
+    if isinstance(exc, UpstreamTimeout):
+        return HTTPException(
+            status_code=504, detail="The request took too long. Try again."
+        )
+    elif isinstance(exc, UpstreamUnavailable):
+        return HTTPException(
+            status_code=503, detail="Service is temporarily unavailable. Try again."
+        )
+    elif isinstance(exc, UpstreamBadResponse):
+        return HTTPException(
+            status_code=502,
+            detail="Something went wrong processing that request. Try again.",
+        )
+    else:
+        return HTTPException(status_code=502, detail="Unexpected upstream error.")
+
+
 def session_key(code: str) -> str:
     return f"session:{code}"
 
@@ -155,8 +191,12 @@ async def join_session(request: JoinSessionRequest, code: str):
     ttl_seconds = r.ttl(session_key(code))
 
     if session["status"] == "revealing" or session["status"] == "reveal_failed":
-        logger.warning(f"Join rejected for {code}: session status is {session['status']}")
-        raise HTTPException(status_code=409, detail="Uh oh! The group has decided already :(")
+        logger.warning(
+            f"Join rejected for {code}: session status is {session['status']}"
+        )
+        raise HTTPException(
+            status_code=409, detail="Uh oh! The group has decided already :("
+        )
     session["participants"].append(request.participant_name)
     r.setex(session_key(code), ttl_seconds, json.dumps(session))
 
@@ -186,7 +226,10 @@ async def start_session(request: StartSessionRequest, code: str):
         session["status"] = "active"
         session["lat"] = request.lat
         session["lng"] = request.lng
-        cuisines = location_to_cuisines(session["lat"], session["lng"])
+        try:
+            cuisines = location_to_cuisines(session["lat"], session["lng"])
+        except UpstreamError as e:
+            raise upstream_to_http(e)
         session["cuisines"] = cuisines
 
         # Preserve the original expiry so normal activity does not extend a session.
@@ -204,7 +247,9 @@ async def start_session(request: StartSessionRequest, code: str):
                 },
             },
         )
-        logger.info(f"Session {code} started by {request.host_name} at ({request.lat}, {request.lng}) → cuisines: {cuisines}")
+        logger.info(
+            f"Session {code} started by {request.host_name} at ({request.lat}, {request.lng}) → cuisines: {cuisines}"
+        )
         return session
 
     raise HTTPException(status_code=403, detail="Only the host can start the session.")
@@ -246,7 +291,9 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
             # The reveal pipeline performs blocking HTTP/AI calls; keep the event loop responsive.
             reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
             await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
-            logger.info(f"Reveal succeeded for {code} → primary: {reveal['primary']['name']}, backups: {[b['name'] for b in reveal['backups']]}")
+            logger.info(
+                f"Reveal succeeded for {code} → primary: {reveal['primary']['name']}, backups: {[b['name'] for b in reveal['backups']]}"
+            )
         except Exception:
             session["status"] = "reveal_failed"
             r.setex(session_key(code), ttl_seconds, json.dumps(session))
@@ -269,7 +316,9 @@ async def retry_session(code: str, request: RetrySessionRequest):
     ttl_seconds = r.ttl(session_key(code))
     if request.host_name == session["host"]:
         if session["status"] != "reveal_failed":
-            raise HTTPException(status_code=409, detail="Retry is only available if pipeline fails")
+            raise HTTPException(
+                status_code=409, detail="Retry is only available if pipeline fails"
+            )
 
         session["status"] = "active"
         session["answers"] = {}
@@ -514,11 +563,19 @@ def get_nearby_restaurants(
             }
         },
     }
-    response = requests.post(url, headers=headers, json=body)
+    try:
+        response = requests.post(
+            url, headers=headers, json=body, timeout=UPSTREAM_TIMEOUT_SEC
+        )
+    except requests.Timeout as e:
+        raise UpstreamTimeout("places searchNearby timed out") from e
+    except requests.ConnectionError as e:
+        raise UpstreamUnavailable("places searchNearby unreachable") from e
     if response.status_code != 200:
         logger.error(
             f"Getting restaurants failed with code {response.status_code} and body: {truncate_log(response.text)}"
         )
+        raise UpstreamBadResponse(f"places searchNearby status={response.status_code}")
     raw = response.json().get("places", [])
     restaurants = clean_restaurants(raw, latitude, longitude)
     return restaurants
@@ -550,7 +607,7 @@ def rank_restaurants_for_group(
     return sorted(filtered, key=lambda r: r["_group_score"], reverse=True)
 
 
-def get_photo_names(place_id: str, max: int = 3) -> list[str] | None:
+def get_photo_names(place_id: str, max: int = 3, strict=False) -> list[str] | None:
     try:
         url = f"https://places.googleapis.com/v1/places/{place_id}"
         headers = {
@@ -558,14 +615,31 @@ def get_photo_names(place_id: str, max: int = 3) -> list[str] | None:
             "X-Goog-FieldMask": "photos",
         }
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=UPSTREAM_TIMEOUT_SEC)
+
+        if response.status_code != 200:
+            raise UpstreamBadResponse(f"Get photos status={response.status_code}")
+
         raw = response.json().get("photos", [])
         if not raw:
             return None
         return [p["name"] for p in raw[:max]]
-    except Exception:
-        logger.exception(f"Get photo names failed for {place_id}")
-        return None
+    except requests.Timeout:
+        exc = UpstreamTimeout(f"Get photos timed out for {place_id}")
+        logger.exception(f"Get photos timed out for {place_id}")
+    except requests.ConnectionError:
+        exc = UpstreamUnavailable(f"Get photos unavailable for {place_id}")
+        logger.exception(f"Get photos unavailable for {place_id}")
+    except (UpstreamBadResponse, KeyError, TypeError) as e:
+        exc = (
+            e
+            if isinstance(e, UpstreamBadResponse)
+            else UpstreamBadResponse(f"Get photos malformed response")
+        )
+        logger.exception(f"Get photos malformed response")
+    if strict:
+        raise exc
+    return None
 
 
 def build_photo_media_url(photo_name: str) -> str:
@@ -578,14 +652,29 @@ def build_photo_media_url(photo_name: str) -> str:
 
 @app.get("/photo/{place_id}/{index}")
 def get_photo(place_id: str, index: int) -> Response:
-    photo_names = get_photo_names(place_id)
-    if not photo_names or index >= len(photo_names):
-        raise HTTPException(status_code=404, detail="No photo")
-    url = build_photo_media_url(photo_names[index])
-    raw = requests.get(url)
-    media_type = raw.headers["content-type"]
+    try:
+        photo_names = get_photo_names(place_id, strict=True)
 
-    return Response(content=raw.content, media_type=media_type)
+        if not photo_names or index >= len(photo_names):
+            raise HTTPException(404, "No photo")
+
+        url = build_photo_media_url(photo_names[index])
+        try:
+            raw = requests.get(url, timeout=UPSTREAM_TIMEOUT_SEC)
+        except requests.Timeout as e:
+            logger.exception(f"Photo media timed out for {place_id}")
+            raise UpstreamTimeout(f"Photo media timed out for {place_id}") from e
+        except requests.ConnectionError as e:
+            logger.exception(f"Photo media unavailable for {place_id}")
+            raise UpstreamUnavailable(f"Photo media unavailable for {place_id}") from e
+
+        if raw.status_code != 200:
+            logger.error(f"Photo media status={raw.status_code}")
+            raise UpstreamBadResponse(f"Photo media status={raw.status_code}")
+        media_type = raw.headers["content-type"]
+        return Response(content=raw.content, media_type=media_type)
+    except UpstreamError as e:
+        raise upstream_to_http(e)
 
 
 def enrich_reveal_photos(reveal: dict, shortlist: list) -> dict:
@@ -787,7 +876,7 @@ Return this exact JSON structure:
   "conflicts": "sentence one ≤10 words\\nsentence two ≤10 words",
   "primary": {{"name": "...", "reason": "...", "maps_link": "..."}},
   "backups": [{{"name": "...", "reason": "...", "maps_link": "..."}}]
-}}"""   
+}}"""
 
     try:
         raw = call_gemini(system_prompt, user_prompt)
