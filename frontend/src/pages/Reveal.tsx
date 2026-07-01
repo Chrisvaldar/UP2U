@@ -42,12 +42,6 @@ export default function Reveal() {
       try {
         const session = await axios.get(`${API_BASE}/session/${code}`);
         if (cancelled) return;
-        if (session.data?.error) {
-          setFlashMessage("Page not found");
-          navigate("/");
-          return;
-        }
-
         setHost(session.data.host);
         ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
         ws.onmessage = (event) => {
@@ -58,11 +52,13 @@ export default function Reveal() {
             navigate("/");
           }
         };
-      } catch {
-        if (!cancelled) {
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+          setFlashMessage("Page not found");
+        } else {
           setFlashMessage("Network failed");
-          navigate("/");
         }
+        navigate("/");
         return;
       }
     }
@@ -133,17 +129,18 @@ export default function Reveal() {
           host_name: trimmedName,
         },
       );
-      if (response.data?.error) {
-        setError(response.data.error);
-        return;
-      }
       setFlashMessage("Session ended");
       clearReveal(sessionCode);
       navigate(`/`);
-    } catch {
-      setError("Failed to end session, try again later");
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Failed to end session, try again later");
+      }
     }
   }
+  
   return (
     <div className="flex flex-col items-center justify-center h-screen">
       {currentSlide.type === "personality" && (
@@ -193,7 +190,10 @@ export default function Reveal() {
                   key={index}
                   className="flex-[0_0_100%] min-w-0 flex justify-center"
                 >
-                  <RestaurantCard restaurant={restaurant} isPrimary={index === 0}/>
+                  <RestaurantCard
+                    restaurant={restaurant}
+                    isPrimary={index === 0}
+                  />
                 </div>
               ))}
             </div>
