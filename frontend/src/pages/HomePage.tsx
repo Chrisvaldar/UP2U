@@ -69,18 +69,19 @@ export default function HomePage() {
           participant_name: trimmedName,
         },
       );
-      if (response.data?.error) {
-        setError(response.data.error);
-        return;
-      }
+
       saveParticipantName(sessionCode, trimmedName);
       if (response.data.status === "active") {
         navigate(`/survey/${sessionCode}`, { state: { name: trimmedName } });
       } else {
         navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
       }
-    } catch {
-      setError("Could not join that session. Check the code and try again.");
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        setError(err.response.data.detail);
+      } else {
+        setError("Could not join that session. Check the code and try again.");
+      }
     } finally {
       setLoading(false);
     }
