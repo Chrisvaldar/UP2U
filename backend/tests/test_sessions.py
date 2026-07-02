@@ -176,6 +176,7 @@ def test_start_session_not_found():
     assert response.status_code == 404
     assert response.json()["detail"] == "Session not found"
 
+
 def test_start_session_places_failure(monkeypatch):
     def raise_bad_response(lat, lng):
         raise main.UpstreamBadResponse("places failed")
@@ -185,8 +186,116 @@ def test_start_session_places_failure(monkeypatch):
     create_response = client.post("/create-session", json={"host_name": "test"})
     code = create_response.json()["code"]
 
-    start_response = client.post(f"/start-session/{code}", json={"host_name": "test", "lat": 0, "lng": 0})
+    start_response = client.post(
+        f"/start-session/{code}", json={"host_name": "test", "lat": 0, "lng": 0}
+    )
     assert start_response.status_code == 502
 
     response = client.get(f"/session/{code}")
     assert response.json()["status"] == "waiting"
+
+
+def test_submit_answers_single(fake_redis):
+    code = "ABC123"
+    session = {
+        "code": code,
+        "host": "host",
+        "status": "active",
+        "location": None,
+        "participants": ["host", "friend"],
+        "answers": {},
+        "lat": 0,
+        "lng": 0,
+    }
+    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+
+    submit_response = client.post(
+        f"/submit-answers/{code}",
+        json={"participant_name": "host", "answers": {}},
+    )
+    assert submit_response.status_code == 200
+
+    response = client.get(f"/session/{code}")
+    assert response.json()["status"] == "active"
+
+
+def test_submit_answers_participant_not_found():
+    create_response = client.post("/create-session", json={"host_name": "host"})
+    code = create_response.json()["code"]
+
+    submit_response = client.post(
+        f"/submit-answers/{code}",
+        json={"participant_name": "not host", "answers": {}},
+    )
+    assert submit_response.status_code == 404
+    assert submit_response.json()["detail"] == "Participant not found"
+
+
+def test_submit_answers_triggers_reveal(monkeypatch, fake_redis):
+    fake_reveal = {
+        "primary": {"name": "Test Restaurant", "reason": "...", "maps_link": "..."},
+        "backups": [],
+        "personality_lines": {},
+        "agreements": "",
+        "conflicts": "",
+    }
+    monkeypatch.setattr(
+        main, "run_reveal_pipeline", lambda users, lat, lng: fake_reveal
+    )
+
+    code = "ABC123"
+    session = {
+        "code": code,
+        "host": "host",
+        "status": "active",
+        "location": None,
+        "participants": ["host", "friend"],
+        "answers": {},
+        "lat": 0,
+        "lng": 0,
+    }
+    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+
+    client.post(
+        f"/submit-answers/{code}", json={"participant_name": "host", "answers": {}}
+    )
+    submit_response = client.post(
+        f"/submit-answers/{code}", json={"participant_name": "friend", "answers": {}}
+    )
+
+    assert submit_response.status_code == 200
+    response = client.get(f"/session/{code}")
+    assert response.json()["status"] == "revealing"
+
+
+def test_submit_answers_reveal_failed(monkeypatch, fake_redis):
+    def raise_bad_response(users, lat, lng):
+        raise main.UpstreamBadResponse("places failed")
+
+    monkeypatch.setattr(main, "run_reveal_pipeline", raise_bad_response)
+
+    code = "ABC123"
+    session = {
+        "code": code,
+        "host": "host",
+        "status": "active",
+        "location": None,
+        "participants": ["host", "friend"],
+        "answers": {},
+        "lat": 0,
+        "lng": 0,
+    }
+    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+
+    client.post(
+        f"/submit-answers/{code}", json={"participant_name": "host", "answers": {}}
+    )
+    submit_response = client.post(
+        f"/submit-answers/{code}", json={"participant_name": "friend", "answers": {}}
+    )
+
+    # Intentional: answers already persisted, 
+    # so this stays 200 even on reveal failure -> see session["status"] / WS for the real outcome
+    assert submit_response.status_code == 200
+    response = client.get(f"/session/{code}")
+    assert response.json()["status"] == "reveal_failed"
