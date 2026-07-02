@@ -299,3 +299,61 @@ def test_submit_answers_reveal_failed(monkeypatch, fake_redis):
     assert submit_response.status_code == 200
     response = client.get(f"/session/{code}")
     assert response.json()["status"] == "reveal_failed"
+
+def test_retry_session(fake_redis):
+    code = "ABC123"
+    session = {
+        "code": code,
+        "host": "host",
+        "status": "reveal_failed",
+        "location": None,
+        "participants": ["host", "friend"],
+        "answers": {"host": {"hunger": 3}, "friend": {"hunger": 5}},
+        "lat": 0,
+        "lng": 0,
+    }
+    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+
+    retry_response = client.post(f"/retry-session/{code}", json={"host_name": "host"})
+    assert retry_response.status_code == 200
+
+    response = client.get(f"/session/{code}")
+    data = response.json()
+    assert data["status"] == "active"
+    assert data["answers"] == {}
+
+def test_retry_session_wrong_status(fake_redis):
+    code = "ABC123"
+    session = {
+        "code": code,
+        "host": "host",
+        "status": "revealing",
+        "location": None,
+        "participants": ["host", "friend"],
+        "answers": {"host": {"hunger": 3}, "friend": {"hunger": 5}},
+        "lat": 0,
+        "lng": 0,
+    }
+    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+
+    retry_response = client.post(f"/retry-session/{code}", json={"host_name": "host"})
+    assert retry_response.status_code == 409
+    assert retry_response.json()["detail"] == "Retry is only available if pipeline fails"
+
+def test_retry_session_not_host(fake_redis):
+    code = "ABC123"
+    session = {
+        "code": code,
+        "host": "host",
+        "status": "reveal_failed",
+        "location": None,
+        "participants": ["host", "friend"],
+        "answers": {"host": {"hunger": 3}, "friend": {"hunger": 5}},
+        "lat": 0,
+        "lng": 0,
+    }
+    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+
+    retry_response = client.post(f"/retry-session/{code}", json={"host_name": "friend"})
+    assert retry_response.status_code == 403
+    assert retry_response.json()["detail"] == "Only the host can retry the session."
