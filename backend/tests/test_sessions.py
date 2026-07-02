@@ -111,3 +111,15 @@ def test_end_session_not_found():
     response = client.post(f"/end-session/696969", json={"host_name": "test"})
     assert response.status_code == 404
     assert response.json()["detail"] == "Session not found"
+
+def test_ttl_preserved_on_join(fake_redis):
+    create_response = client.post("/create-session", json={"host_name": "test"})
+    code = create_response.json()["code"]
+
+    ttl_before = fake_redis.ttl(session_key(code))
+
+    client.post(f"/join-session/{code}", json={"participant_name": "test2"})
+
+    ttl_after = fake_redis.ttl(session_key(code))
+
+    assert ttl_before - ttl_after < 5
