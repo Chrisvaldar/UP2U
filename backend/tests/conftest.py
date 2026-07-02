@@ -9,4 +9,4 @@ import main
 def fake_redis(monkeypatch):
     fake_instance = fakeredis.FakeRedis()
     monkeypatch.setattr(main, "r", fake_instance)
-    yield
+    yield fake_instance
