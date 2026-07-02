@@ -86,3 +86,28 @@ def test_join_session_conflict_reveal_failed(fake_redis):
     response = client.post(f"/join-session/{code}", json={"participant_name": "latecomer"})
     assert response.status_code == 409
     assert response.json()["detail"] == "Uh oh! The group has decided already :("
+
+def test_end_session():
+    create_response = client.post("/create-session", json={"host_name": "test"})
+    code = create_response.json()["code"]
+
+    end_response = client.post(f"/end-session/{code}", json={"host_name": "test"})
+    assert end_response.status_code == 200
+
+    response = client.get(f"/session/{code}")
+    assert response.status_code == 404
+
+def test_end_session_not_host():
+    create_response = client.post("/create-session", json={"host_name": "test"})
+    code = create_response.json()["code"]
+
+    end_response = client.post(f"/end-session/{code}", json={"host_name": "test2"})
+    assert end_response.status_code == 403
+
+    response = client.get(f"/session/{code}")
+    assert response.status_code == 200
+
+def test_end_session_not_found():
+    response = client.post(f"/end-session/696969", json={"host_name": "test"})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Session not found"
