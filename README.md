@@ -123,7 +123,7 @@ cd ..\backend
 venv\Scripts\python.exe -m pytest
 ```
 
-Backend tests are currently skipped placeholders from the learning phase. They document intended smoke coverage but do not yet assert behavior.
+Backend tests use **fakeredis** (no real Redis required) and cover session lifecycle, HTTP error codes (404/403/409/502), TTL preservation, reveal pipeline success/failure, and retry. See `backend/tests/test_sessions.py`.
 
 ## Known Limitations
 
@@ -131,7 +131,7 @@ Backend tests are currently skipped placeholders from the learning phase. They d
 - Reveal payload is in `sessionStorage` only — new tab or cleared storage loses reveal.
 - Survey steps 0–4 reset on refresh (draft answers not persisted).
 - `GOOGLE_PLACES_API_KEY` is server-side only (photo proxy), but the key has no API restrictions yet — restrict before public launch.
-- Backend tests need to be replaced with real assertions.
+- No CI/CD yet — run `pytest` and `npm run build` locally before merging.
 
 Backend logs session lifecycle, reveal success/failure (typed `UpstreamError` vs unexpected exceptions), Places/photo/geocode errors, and AI JSON parse failures via Python `logging`. See `PROJECT_HANDOFF.md` §7.12 for the full call map.
 
