@@ -167,7 +167,7 @@ def create_session(request: CreateSessionRequest):
         "answers": {},
     }
 
-    r.setex(session_key(code), ttl_seconds, json.dumps(session))
+    r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
     logger.info(f"Session {code} created by {request.host_name}")
     return {"code": code}
 
@@ -198,7 +198,7 @@ async def join_session(request: JoinSessionRequest, code: str):
             status_code=409, detail="Uh oh! The group has decided already :("
         )
     session["participants"].append(request.participant_name)
-    r.setex(session_key(code), ttl_seconds, json.dumps(session))
+    r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
 
     await manager.broadcast(
         code,
@@ -233,7 +233,7 @@ async def start_session(request: StartSessionRequest, code: str):
         session["cuisines"] = cuisines
 
         # Preserve the original expiry so normal activity does not extend a session.
-        r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
         await manager.broadcast(
             code,
             {
@@ -283,7 +283,7 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
 
     if len(session["answers"]) == len(session["participants"]):
         session["status"] = "revealing"
-        r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
         lat = session["lat"]
         lng = session["lng"]
         users = [{"name": name, **ans} for name, ans in session["answers"].items()]
@@ -296,7 +296,7 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
             )
         except UpstreamError as e:
             session["status"] = "reveal_failed"
-            r.setex(session_key(code), ttl_seconds, json.dumps(session))
+            r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
             logger.error(
                 f"Reveal pipeline failed for session {code}: {type(e).__name__}: {e}"
             )
@@ -306,13 +306,13 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
             )
         except Exception:
             session["status"] = "reveal_failed"
-            r.setex(session_key(code), ttl_seconds, json.dumps(session))
+            r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
             logger.exception(f"Reveal pipeline failed for session {code}")
             await manager.broadcast(
                 code,
                 {"type": "reveal_failed", "data": {"error": "Oops! Reveal failed"}},
             )
-    r.setex(session_key(code), ttl_seconds, json.dumps(session))
+    r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
     return session
 
 
@@ -332,7 +332,7 @@ async def retry_session(code: str, request: RetrySessionRequest):
 
         session["status"] = "active"
         session["answers"] = {}
-        r.setex(session_key(code), ttl_seconds, json.dumps(session))
+        r.set(session_key(code), json.dumps(session), ex=ttl_seconds)
         await manager.broadcast(
             code, {"type": "retrying", "data": {"message": "attempting retry"}}
         )
