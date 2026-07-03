@@ -265,7 +265,8 @@ def test_submit_answers_triggers_reveal(monkeypatch, fake_redis):
 
     assert submit_response.status_code == 200
     response = client.get(f"/session/{code}")
-    assert response.json()["status"] == "revealing"
+    assert response.json()["status"] == "revealed"
+    assert response.json()["reveal"] == fake_reveal
 
 
 def test_submit_answers_reveal_failed(monkeypatch, fake_redis):

@@ -190,7 +190,11 @@ async def join_session(request: JoinSessionRequest, code: str):
     # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = r.ttl(session_key(code))
 
-    if session["status"] == "revealing" or session["status"] == "reveal_failed":
+    if (
+        session["status"] == "revealing"
+        or session["status"] == "reveal_failed"
+        or session["status"] == "revealed"
+    ):
         logger.warning(
             f"Join rejected for {code}: session status is {session['status']}"
         )
@@ -290,6 +294,8 @@ async def submit_answers(request: SubmitAnswersRequest, code: str):
         try:
             # The reveal pipeline performs blocking HTTP/AI calls; keep the event loop responsive.
             reveal = await asyncio.to_thread(run_reveal_pipeline, users, lat, lng)
+            session["status"] = "revealed"
+            session["reveal"] = reveal
             await manager.broadcast(code, {"type": "reveal_ready", "data": reveal})
             logger.info(
                 f"Reveal succeeded for {code} → primary: {reveal['primary']['name']}, backups: {[b['name'] for b in reveal['backups']]}"

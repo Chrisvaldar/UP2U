@@ -121,6 +121,10 @@ export default function Survey() {
         if (status === "reveal_failed") {
           setError("Oops! Reveal failed");
           resolvedStep = 7;
+        } else if (status === "revealed") {
+          saveReveal(code.trim().toUpperCase(), session.data.reveal);
+          navigate(`/reveal/${code}`);
+          return;
         } else if (status === "revealing") {
           resolvedStep = 6;
         } else if (submittedNames.includes(name.trim())) {
