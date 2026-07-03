@@ -357,3 +357,34 @@ def test_retry_session_not_host(fake_redis):
     retry_response = client.post(f"/retry-session/{code}", json={"host_name": "friend"})
     assert retry_response.status_code == 403
     assert retry_response.json()["detail"] == "Only the host can retry the session."
+
+def test_debug_routes_disabled(monkeypatch):
+    monkeypatch.setattr(main, "DEBUG", False)
+
+    test_places_response = client.get("/test-places")
+    assert test_places_response.status_code == 404
+    assert test_places_response.json()["detail"] == "Dev endpoint: Not found"
+
+    test_reveal_response = client.get("/test-reveal")
+    assert test_reveal_response.status_code == 404
+    assert test_reveal_response.json()["detail"] == "Dev endpoint: Not found"
+
+    test_geocode_response = client.get("/test-geocode")
+    assert test_geocode_response.status_code == 404
+    assert test_geocode_response.json()["detail"] == "Dev endpoint: Not found"
+
+def test_debug_routes_enabled(monkeypatch):
+    monkeypatch.setattr(main, "DEBUG", True)
+    monkeypatch.setattr(main, "get_nearby_restaurants", lambda lat, lng, radius: [])
+    monkeypatch.setattr(main, "run_reveal_pipeline", lambda users, lat, lng: {"primary": {}, "backups": []})
+    monkeypatch.setattr(main, "geocode_location", lambda address: (0.0, 0.0))
+
+    places_response = client.get("/test-places")
+    assert places_response.status_code == 200
+
+    reveal_response = client.get("/test-reveal")
+    assert reveal_response.status_code == 200
+
+    geocode_response = client.get("/test-geocode")
+    assert geocode_response.status_code == 
+    
