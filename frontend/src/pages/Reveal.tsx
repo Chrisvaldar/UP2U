@@ -7,6 +7,7 @@ import {
   getParticipantName,
   getReveal,
   clearReveal,
+  clearDraft,
   setFlashMessage,
 } from "@/lib/session";
 import ErrorMessage from "../components/ErrorMessage";
@@ -48,6 +49,7 @@ export default function Reveal() {
           const message = JSON.parse(event.data);
           if (message["type"] === "session_ended") {
             clearReveal(code.trim().toUpperCase());
+            clearDraft(code.trim().toUpperCase());
             setFlashMessage("Session ended");
             navigate("/");
           }
@@ -131,6 +133,7 @@ export default function Reveal() {
       );
       setFlashMessage("Session ended");
       clearReveal(sessionCode);
+      clearDraft(sessionCode);
       navigate(`/`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {

@@ -11,6 +11,9 @@ import {
   getParticipantName,
   saveReveal,
   clearReveal,
+  saveDraft,
+  getDraft,
+  clearDraft,
   setFlashMessage,
 } from "@/lib/session";
 import ErrorMessage from "../components/ErrorMessage";
@@ -32,6 +35,7 @@ export default function Survey() {
   const [messageIndex, setMessageIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const navigate = useNavigate();
 
   const loadingMessages = [
@@ -73,6 +77,8 @@ export default function Survey() {
         },
       });
 
+      clearDraft(code.trim().toUpperCase());
+
       if (submitted.length + 1 >= total) {
         setStep(6);
       } else {
@@ -103,22 +109,40 @@ export default function Survey() {
         const status = session.data.status;
         setHost(session.data.host);
         setTotal(session.data.participants.length);
-        setCuisinesRanked(
-          (session.data.cuisines ?? []).map(
-            (c: string) => c.charAt(0).toUpperCase() + c.slice(1),
-          ),
-        );
-
         const submittedNames = Object.keys(session.data.answers ?? {});
         setSubmitted(submittedNames);
 
+        const sessionCuisines = (session.data.cuisines ?? []).map(
+          (c: string) => c.charAt(0).toUpperCase() + c.slice(1),
+        );
+        setCuisinesRanked(sessionCuisines);
+
+        let resolvedStep = 0;
         if (status === "reveal_failed") {
           setError("Oops! Reveal failed");
-          setStep(7);
+          resolvedStep = 7;
         } else if (status === "revealing") {
-          setStep(6);
+          resolvedStep = 6;
         } else if (submittedNames.includes(name.trim())) {
-          setStep(5);
+          resolvedStep = 5;
+        }
+        setStep(resolvedStep);
+
+        if (resolvedStep <= 4) {
+          const draft = getDraft(code);
+          if (draft) {
+            setStep(Math.min(4, Math.max(0, draft.step)));
+            setHunger(draft.hunger);
+            setVibe(draft.vibe);
+            if (
+              draft.cuisinesRanked.length === sessionCuisines.length &&
+              draft.cuisinesRanked.every((c) => sessionCuisines.includes(c))
+            ) {
+              setCuisinesRanked(draft.cuisinesRanked);
+            }
+            setTravelDistance(draft.travelDistance);
+            setDietary(draft.dietary);
+          }
         }
 
         ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
@@ -145,18 +169,21 @@ export default function Survey() {
             setStep(7);
           } else if (message["type"] == "retrying") {
             clearReveal(code.trim().toUpperCase());
+            clearDraft(code.trim().toUpperCase());
             navigate(`/lobby/${code.trim().toUpperCase()}`, {
               state: { name: name.trim() },
             });
           } else if (message["type"] == "session_ended") {
             setFlashMessage("Session ended");
             clearReveal(code.trim().toUpperCase());
+            clearDraft(code.trim().toUpperCase());
             navigate(`/`);
           }
         };
         ws.onerror = () => {
           setError("Lost the live survey connection. Refresh to reconnect.");
         };
+        setSessionLoaded(true);
       } catch (err) {
         if (axios.isAxiosError(err) && err.response) {
           setError(err.response.data.detail);
@@ -174,6 +201,27 @@ export default function Survey() {
       ws?.close();
     };
   }, [code, name, navigate]);
+
+  useEffect(() => {
+    if (!code || !sessionLoaded || step > 4) return;
+    saveDraft(code, {
+      step,
+      hunger,
+      vibe,
+      cuisinesRanked,
+      travelDistance,
+      dietary,
+    });
+  }, [
+    code,
+    sessionLoaded,
+    step,
+    hunger,
+    vibe,
+    cuisinesRanked,
+    travelDistance,
+    dietary,
+  ]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -205,6 +253,7 @@ export default function Survey() {
         },
       );
       clearReveal(sessionCode);
+      clearDraft(sessionCode);
       navigate(`/lobby/${sessionCode}`, { state: { name: trimmedName } });
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
@@ -229,6 +278,7 @@ export default function Survey() {
       );
       setFlashMessage("Session ended");
       clearReveal(sessionCode);
+      clearDraft(sessionCode);
       navigate(`/`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {

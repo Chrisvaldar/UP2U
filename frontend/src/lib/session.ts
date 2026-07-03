@@ -37,6 +37,34 @@ export function clearReveal(code: string){
     sessionStorage.removeItem(`up2u:${code.toUpperCase()}:reveal`);
 }
 
+export type SurveyDraft = {
+    step: number;
+    hunger: number;
+    vibe: string;
+    cuisinesRanked: string[];
+    travelDistance: string;
+    dietary: string[];
+};
+
+export function saveDraft(code: string, draft: SurveyDraft) {
+    sessionStorage.setItem(
+        `up2u:${code.toUpperCase()}:draft`,
+        JSON.stringify(draft),
+    );
+}
+
+export function getDraft(code: string) {
+    const draft = sessionStorage.getItem(`up2u:${code.toUpperCase()}:draft`);
+    if (!draft) {
+        return;
+    }
+    return JSON.parse(draft) as SurveyDraft;
+}
+
+export function clearDraft(code: string) {
+    sessionStorage.removeItem(`up2u:${code.toUpperCase()}:draft`);
+}
+
 export function setFlashMessage(message: string) {
     sessionStorage.setItem("up2u:message", message);
 }
