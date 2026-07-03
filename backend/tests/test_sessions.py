@@ -387,3 +387,18 @@ def test_debug_routes_enabled(monkeypatch):
 
     geocode_response = client.get("/test-geocode")
     assert geocode_response.status_code == 200
+
+def test_photo_not_found(monkeypatch):
+    monkeypatch.setattr(main, "get_photo_names", lambda place_id, strict: None)
+
+    photos_response = client.get("/photo/696969/0")
+    assert photos_response.status_code == 404
+
+def test_photo_upstream_error(monkeypatch):
+    def raise_timeout(place_id, strict):
+        raise main.UpstreamTimeout("photo names timed out")
+
+    monkeypatch.setattr(main, "get_photo_names", raise_timeout)
+
+    response = client.get("/photo/696969/0")
+    assert response.status_code == 504
