@@ -2,9 +2,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 import json
-import main
+from app.main import app
+from app import redis_client
+from app import config
+from app import errors
+from app.services import places
+from app.services import ai_reveal
+from app.services import photos
+from app.services import geocoding
 
-client = TestClient(main.app)
+client = TestClient(app)
 
 
 def test_health():
@@ -72,7 +79,7 @@ def test_join_session_conflict_revealing(fake_redis):
         "participants": ["test"],
         "answers": {},
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     response = client.post(
         f"/join-session/{code}", json={"participant_name": "latecomer"}
@@ -91,7 +98,7 @@ def test_join_session_conflict_reveal_failed(fake_redis):
         "participants": ["test"],
         "answers": {},
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     response = client.post(
         f"/join-session/{code}", json={"participant_name": "latecomer"}
@@ -132,18 +139,18 @@ def test_ttl_preserved_on_join(fake_redis):
     create_response = client.post("/create-session", json={"host_name": "test"})
     code = create_response.json()["code"]
 
-    ttl_before = fake_redis.ttl(main.session_key(code))
+    ttl_before = fake_redis.ttl(redis_client.session_key(code))
 
     client.post(f"/join-session/{code}", json={"participant_name": "test2"})
 
-    ttl_after = fake_redis.ttl(main.session_key(code))
+    ttl_after = fake_redis.ttl(redis_client.session_key(code))
 
     assert ttl_before - ttl_after < 5
 
 
 def test_start_session(monkeypatch):
     monkeypatch.setattr(
-        main, "location_to_cuisines", lambda lat, lng: ["thai", "italian"]
+        places, "location_to_cuisines", lambda lat, lng: ["thai", "italian"]
     )
 
     create_response = client.post("/create-session", json={"host_name": "test"})
@@ -179,9 +186,9 @@ def test_start_session_not_found():
 
 def test_start_session_places_failure(monkeypatch):
     def raise_bad_response(lat, lng):
-        raise main.UpstreamBadResponse("places failed")
+        raise errors.UpstreamBadResponse("places failed")
 
-    monkeypatch.setattr(main, "location_to_cuisines", raise_bad_response)
+    monkeypatch.setattr(places, "location_to_cuisines", raise_bad_response)
 
     create_response = client.post("/create-session", json={"host_name": "test"})
     code = create_response.json()["code"]
@@ -207,7 +214,7 @@ def test_submit_answers_single(fake_redis):
         "lat": 0,
         "lng": 0,
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     submit_response = client.post(
         f"/submit-answers/{code}",
@@ -240,7 +247,7 @@ def test_submit_answers_triggers_reveal(monkeypatch, fake_redis):
         "conflicts": "",
     }
     monkeypatch.setattr(
-        main, "run_reveal_pipeline", lambda users, lat, lng: fake_reveal
+        ai_reveal, "run_reveal_pipeline", lambda users, lat, lng: fake_reveal
     )
 
     code = "ABC123"
@@ -254,7 +261,7 @@ def test_submit_answers_triggers_reveal(monkeypatch, fake_redis):
         "lat": 0,
         "lng": 0,
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     client.post(
         f"/submit-answers/{code}", json={"participant_name": "host", "answers": {}}
@@ -271,9 +278,9 @@ def test_submit_answers_triggers_reveal(monkeypatch, fake_redis):
 
 def test_submit_answers_reveal_failed(monkeypatch, fake_redis):
     def raise_bad_response(users, lat, lng):
-        raise main.UpstreamBadResponse("places failed")
+        raise errors.UpstreamBadResponse("places failed")
 
-    monkeypatch.setattr(main, "run_reveal_pipeline", raise_bad_response)
+    monkeypatch.setattr(ai_reveal, "run_reveal_pipeline", raise_bad_response)
 
     code = "ABC123"
     session = {
@@ -286,7 +293,7 @@ def test_submit_answers_reveal_failed(monkeypatch, fake_redis):
         "lat": 0,
         "lng": 0,
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     client.post(
         f"/submit-answers/{code}", json={"participant_name": "host", "answers": {}}
@@ -313,7 +320,7 @@ def test_retry_session(fake_redis):
         "lat": 0,
         "lng": 0,
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     retry_response = client.post(f"/retry-session/{code}", json={"host_name": "host"})
     assert retry_response.status_code == 200
@@ -335,7 +342,7 @@ def test_retry_session_wrong_status(fake_redis):
         "lat": 0,
         "lng": 0,
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     retry_response = client.post(f"/retry-session/{code}", json={"host_name": "host"})
     assert retry_response.status_code == 409
@@ -353,14 +360,14 @@ def test_retry_session_not_host(fake_redis):
         "lat": 0,
         "lng": 0,
     }
-    fake_redis.set(main.session_key(code), json.dumps(session), ex=3600)
+    fake_redis.set(redis_client.session_key(code), json.dumps(session), ex=3600)
 
     retry_response = client.post(f"/retry-session/{code}", json={"host_name": "friend"})
     assert retry_response.status_code == 403
     assert retry_response.json()["detail"] == "Only the host can retry the session."
 
 def test_debug_routes_disabled(monkeypatch):
-    monkeypatch.setattr(main, "DEBUG", False)
+    monkeypatch.setattr(config, "DEBUG", False)
 
     test_places_response = client.get("/test-places")
     assert test_places_response.status_code == 404
@@ -375,10 +382,10 @@ def test_debug_routes_disabled(monkeypatch):
     assert test_geocode_response.json()["detail"] == "Dev endpoint: Not found"
 
 def test_debug_routes_enabled(monkeypatch):
-    monkeypatch.setattr(main, "DEBUG", True)
-    monkeypatch.setattr(main, "get_nearby_restaurants", lambda lat, lng, radius: [])
-    monkeypatch.setattr(main, "run_reveal_pipeline", lambda users, lat, lng: {"primary": {}, "backups": []})
-    monkeypatch.setattr(main, "geocode_location", lambda address: (0.0, 0.0))
+    monkeypatch.setattr(config, "DEBUG", True)
+    monkeypatch.setattr(places, "get_nearby_restaurants", lambda lat, lng, radius: [])
+    monkeypatch.setattr(ai_reveal, "run_reveal_pipeline", lambda users, lat, lng: {"primary": {}, "backups": []})
+    monkeypatch.setattr(geocoding, "geocode_location", lambda address: (0.0, 0.0))
 
     places_response = client.get("/test-places")
     assert places_response.status_code == 200
@@ -390,16 +397,16 @@ def test_debug_routes_enabled(monkeypatch):
     assert geocode_response.status_code == 200
 
 def test_photo_not_found(monkeypatch):
-    monkeypatch.setattr(main, "get_photo_names", lambda place_id, strict: None)
+    monkeypatch.setattr(photos, "get_photo_names", lambda place_id, strict: None)
 
     photos_response = client.get("/photo/696969/0")
     assert photos_response.status_code == 404
 
 def test_photo_upstream_error(monkeypatch):
     def raise_timeout(place_id, strict):
-        raise main.UpstreamTimeout("photo names timed out")
+        raise errors.UpstreamTimeout("photo names timed out")
 
-    monkeypatch.setattr(main, "get_photo_names", raise_timeout)
+    monkeypatch.setattr(photos, "get_photo_names", raise_timeout)
 
     response = client.get("/photo/696969/0")
     assert response.status_code == 504
