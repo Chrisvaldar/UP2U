@@ -402,3 +402,18 @@ def test_photo_upstream_error(monkeypatch):
 
     response = client.get("/photo/696969/0")
     assert response.status_code == 504
+
+def test_ws_connect():
+    with client.websocket_connect("/ws/ABC123/Chris") as ws:
+        pass
+
+def test_join_broadcasts_participant_joined():
+    create_response = client.post("/create-session", json={"host_name": "host"})
+    code = create_response.json()["code"]
+
+    with client.websocket_connect(f"/ws/{code}/host") as ws:
+        client.post(f"/join-session/{code}", json={"participant_name": "friend"})
+
+        message = ws.receive_json()
+        assert message["type"] == "participant_joined"
+        assert message["data"]["name"] == "friend"
