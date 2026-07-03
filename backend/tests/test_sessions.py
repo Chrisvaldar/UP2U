@@ -386,5 +386,4 @@ def test_debug_routes_enabled(monkeypatch):
     assert reveal_response.status_code == 200
 
     geocode_response = client.get("/test-geocode")
-    assert geocode_response.status_code == 
-    
+    assert geocode_response.status_code == 200
