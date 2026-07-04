@@ -6,6 +6,11 @@ import Survey from "./pages/Survey";
 import Reveal from "./pages/Reveal";
 import { APIProvider } from "@vis.gl/react-google-maps";
 
+/**
+ * Root application shell with Google Maps provider and route definitions.
+ *
+ * @returns Routed pages for home, lobby, survey, and reveal flows.
+ */
 function App() {
   return (
     <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>

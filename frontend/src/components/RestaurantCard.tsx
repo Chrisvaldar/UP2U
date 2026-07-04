@@ -7,6 +7,12 @@ type RestaurantCardProps = {
   isPrimary?: boolean;
 };
 
+/**
+ * Card displaying a recommended restaurant with optional photo carousel.
+ *
+ * @param props - Restaurant data and whether this is the primary pick.
+ * @returns Restaurant card with photos, reason, and Maps link.
+ */
 export default function RestaurantCard({
   restaurant,
   isPrimary,

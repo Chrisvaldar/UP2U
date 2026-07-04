@@ -7,6 +7,14 @@ import { API_BASE, WS_BASE } from "@/lib/config";
 import { getParticipantName, setFlashMessage } from "@/lib/session";
 import ErrorMessage from "../components/ErrorMessage";
 
+/**
+ * Pre-survey lobby where participants wait for the host to start.
+ *
+ * @remarks
+ * Opens a WebSocket for participant_joined and session_started events.
+ *
+ * @returns Lobby UI with session code, participant list, and host controls.
+ */
 export default function Lobby() {
   const { code } = useParams();
   const name =
@@ -31,6 +39,9 @@ export default function Lobby() {
     let cancelled = false;
     let ws: WebSocket | undefined;
 
+    /**
+     * Load session state and subscribe to lobby WebSocket events.
+     */
     async function get_session() {
       if (!code || !getParticipantName(code)) return;
 
@@ -78,6 +89,12 @@ export default function Lobby() {
     return () => clearInterval(interval);
   }, []);
 
+  /**
+   * Host-only action to set location and activate the session.
+   *
+   * @remarks
+   * Participants are navigated to survey via session_started WebSocket event.
+   */
   async function handleStart() {
     if (lat === null || lng === null) {
       setError("Choose a location before starting.");

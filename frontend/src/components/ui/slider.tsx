@@ -3,6 +3,12 @@ import { Slider as SliderPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 
+/**
+ * Radix-based range slider with Tailwind styling.
+ *
+ * @param props - Radix Slider root props including min, max, and value.
+ * @returns Styled slider with track, range, and thumb elements.
+ */
 function Slider({
   className,
   defaultValue,

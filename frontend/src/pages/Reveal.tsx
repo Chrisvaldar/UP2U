@@ -14,6 +14,14 @@ import ErrorMessage from "../components/ErrorMessage";
 import { API_BASE, WS_BASE } from "@/lib/config";
 import axios from "axios";
 
+/**
+ * Animated reveal page showing personality lines, group summary, and restaurants.
+ *
+ * @remarks
+ * Auto-advances slides every four seconds until the restaurant carousel step.
+ *
+ * @returns Reveal slideshow or null when reveal data is missing.
+ */
 export default function Reveal() {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -35,6 +43,9 @@ export default function Reveal() {
     let cancelled = false;
     let ws: WebSocket | undefined;
 
+    /**
+     * Load host name and listen for session_ended over WebSocket.
+     */
     async function start_reveal() {
       if (!code || !name) {
         return;
@@ -92,6 +103,13 @@ export default function Reveal() {
     return () => clearTimeout(timer);
   }, [step, reveal, restaurantsSlideIndex]);
 
+  /**
+   * Render multiline reveal text as separate paragraphs.
+   *
+   * @param text - Newline-separated string from the reveal payload.
+   * @param className - Tailwind classes applied to each line paragraph.
+   * @returns Array of paragraph elements, one per line.
+   */
   function renderLines(text: string, className: string) {
     return text.split("\n").map((line, i) => (
       <p key={i} className={className}>
@@ -119,6 +137,9 @@ export default function Reveal() {
     | { type: "conflicts" }
     | { type: "restaurants" };
 
+  /**
+   * Host-only action to end the session and return home.
+   */
   async function handleEndSession() {
     setError("");
     if (!code || !getParticipantName(code)) return;

@@ -4,6 +4,12 @@ type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 };
 
+/**
+ * Rounded text input with shared styling.
+ *
+ * @param props - Input placeholder, value, onChange, and native input attributes.
+ * @returns A styled HTML input element.
+ */
 export default function Input({
   placeholder,
   value,

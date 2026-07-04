@@ -4,10 +4,21 @@ interface Props {
   onPlaceSelect: (place: google.maps.places.Place | null) => void;
 }
 
+/**
+ * Google Places autocomplete input for selecting a session location.
+ *
+ * @param onPlaceSelect - Callback invoked with the selected place or null.
+ * @returns gmp-place-autocomplete custom element wrapper.
+ */
 export const LocationAutocomplete = ({ onPlaceSelect }: Props) => {
   // make sure the `<gmp-place-autocomplete>` component gets loaded
   useMapsLibrary("places");
 
+  /**
+   * Fetch place fields and notify the parent of the selection.
+   *
+   * @param place - Google Places Place object from autocomplete selection.
+   */
   async function handlePlaceSelect(place: google.maps.places.Place) {
     await place.fetchFields({
       fields: ["displayName", "formattedAddress", "location"]

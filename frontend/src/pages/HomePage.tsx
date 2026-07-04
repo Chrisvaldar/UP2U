@@ -8,6 +8,11 @@ import { API_BASE } from "@/lib/config";
 import { saveParticipantName } from "@/lib/session";
 type Screen = "landing" | "create" | "join";
 
+/**
+ * Landing page for creating or joining a session.
+ *
+ * @returns Home screen with create/join flows and flash error display.
+ */
 export default function HomePage() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -23,6 +28,9 @@ export default function HomePage() {
       sessionStorage.removeItem("up2u:message");
     }
   }, []);
+  /**
+   * Create a new session and navigate the host to the lobby.
+   */
   async function handleCreate() {
     const trimmedName = name.trim();
     if (!trimmedName) {
@@ -48,6 +56,9 @@ export default function HomePage() {
     }
   }
 
+  /**
+   * Join an existing session and route to lobby or survey based on status.
+   */
   async function handleJoin() {
     const trimmedName = name.trim();
     const sessionCode = code.trim().toUpperCase();
@@ -87,6 +98,11 @@ export default function HomePage() {
     }
   }
 
+  /**
+   * Switch between landing, create, and join screens and clear errors.
+   *
+   * @param nextScreen - Target screen to display.
+   */
   function selectScreen(nextScreen: Screen) {
     setScreen(nextScreen);
     setError("");

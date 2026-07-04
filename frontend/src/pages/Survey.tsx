@@ -18,6 +18,14 @@ import {
 } from "@/lib/session";
 import ErrorMessage from "../components/ErrorMessage";
 
+/**
+ * Multi-step survey page for collecting group dining preferences.
+ *
+ * @remarks
+ * Persists draft answers to sessionStorage and listens for reveal WebSocket events.
+ *
+ * @returns Survey wizard, waiting states, and reveal-failure recovery UI.
+ */
 export default function Survey() {
   const { code } = useParams();
   const name =
@@ -60,6 +68,12 @@ export default function Survey() {
     }
   }, [code, navigate]);
 
+  /**
+   * Submit the current participant's answers to the backend.
+   *
+   * @remarks
+   * Advances to step 5 (waiting) or step 6 (revealing) based on group progress.
+   */
   async function handleSubmit() {
     if (!code || !getParticipantName(code)) return;
 
@@ -99,6 +113,12 @@ export default function Survey() {
     let cancelled = false;
     let ws: WebSocket | undefined;
 
+    /**
+     * Load session status, restore draft answers, and open the survey WebSocket.
+     *
+     * @remarks
+     * Routes to reveal when status is revealed; sets step from status and submissions.
+     */
     async function load_survey() {
       if (!code || !getParticipantName(code)) return;
 
@@ -245,6 +265,9 @@ export default function Survey() {
     }
   }, [step]);
 
+  /**
+   * Host-only action to reset a failed reveal and return to the lobby.
+   */
   async function handleRetry() {
     if (!code || !getParticipantName(code)) return;
     const trimmedName = name.trim();
@@ -268,6 +291,9 @@ export default function Survey() {
     }
   }
 
+  /**
+   * Host-only action to end the session and return home.
+   */
   async function handleEndSession() {
     setError("");
     if (!code || !getParticipantName(code)) return;

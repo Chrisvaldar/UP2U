@@ -5,6 +5,12 @@ type SortableItemProps = {
   index: number;
 };
 
+/**
+ * Draggable cuisine tag for ranking in the survey step.
+ *
+ * @param props - Stable item id and sortable index.
+ * @returns A sortable pill showing the cuisine label.
+ */
 export default function SortableItem({ id, index }: SortableItemProps) {
   const { ref } = useSortable({ id, index });
 

@@ -5,6 +5,12 @@ type ButtonProps = {
   variant?: "solid" | "outline";
 };
 
+/**
+ * Styled button with solid or outline variants.
+ *
+ * @param props - Button label, click handler, disabled state, and variant.
+ * @returns A rounded green button element.
+ */
 export default function Button({
   label,
   onClick,
