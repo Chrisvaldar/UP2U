@@ -54,6 +54,18 @@ GENERIC_TYPES = {
 
 
 def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """
+    Compute the great-circle distance between two coordinates.
+
+    Args:
+        lat1: Latitude of the first point in degrees.
+        lng1: Longitude of the first point in degrees.
+        lat2: Latitude of the second point in degrees.
+        lng2: Longitude of the second point in degrees.
+
+    Returns:
+        Distance between the two points in metres.
+    """
     R = 6371000  # Earth's radius in metres
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -67,14 +79,18 @@ def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 def clean_restaurants(raw_places: list, user_lat: float, user_lng: float) -> list:
     """
-    Filter and reshape raw Google Places API results into usable restaurant dicts.
+    Filter and reshape raw Google Places API results into restaurant dicts.
 
-    Filters out:
-    - Non-restaurant venues (hotels, gyms, pharmacies, etc.)
-    - Places without any food-related type tag
+    Filters out non-restaurant venues and places without food-related types.
 
-    Returns a list of dicts with consistent keys for the AI prompt,
-    including primary_type (Google's single main label per place).
+    Args:
+        raw_places: Raw place objects from the Places API.
+        user_lat: User latitude used to compute distance_meters.
+        user_lng: User longitude used to compute distance_meters.
+
+    Returns:
+        A list of normalized restaurant dicts with consistent keys for ranking
+        and the AI reveal prompt, including primary_type and distance_meters.
     """
     cleaned = []
     for place in raw_places:
@@ -122,11 +138,12 @@ def cuisine_from_primary_type(primary_type: str | None) -> str | None:
     """
     Derive a survey cuisine label from a Google Places primaryType.
 
-    Only types ending in _restaurant are considered — venue categories
-    like cafe and bar are excluded automatically. Non-cuisine restaurant
-    types (dessert, fast food) are skipped via NON_CUISINE_PRIMARY_TYPES.
-    Compound types such as korean_barbecue_restaurant normalize to the
-    base cuisine (korean).
+    Args:
+        primary_type: Google's single main type label for a place, or None.
+
+    Returns:
+        A human-readable cuisine string (e.g. "korean"), or None if the type is
+        not a cuisine restaurant or is in NON_CUISINE_PRIMARY_TYPES.
     """
     if not primary_type or not primary_type.endswith("_restaurant"):
         return None
@@ -143,10 +160,14 @@ def cuisine_from_primary_type(primary_type: str | None) -> str | None:
 
 def location_to_cuisines(lat: float, lng: float) -> list[str]:
     """
-    Return up to 5 nearby cuisine labels for the survey.
+    Return up to five nearby cuisine labels for the survey step.
 
-    Counts one vote per restaurant using primary_type only, so generic
-    tags (cafe, bakery, etc.) cannot dominate the frequency ranking.
+    Args:
+        lat: Latitude of the session location.
+        lng: Longitude of the session location.
+
+    Returns:
+        Up to five cuisine labels ranked by frequency among nearby restaurants.
     """
     restaurants = get_nearby_restaurants(lat, lng, 2000)
     cuisines = defaultdict(int)
@@ -162,10 +183,22 @@ def get_nearby_restaurants(
     latitude: float, longitude: float, radius: float = 500
 ) -> list:
     """
-    Fetch and clean restaurants within a certain radius of the given coordinates.
+    Fetch and clean restaurants within a radius of the given coordinates.
 
-    Uses the Google Places API v1 (New) searchNearby endpoint.
-    Returns up to 20 results, filtered through clean_restaurants.
+    Uses the Google Places API v1 searchNearby endpoint.
+
+    Args:
+        latitude: Centre latitude for the search.
+        longitude: Centre longitude for the search.
+        radius: Search radius in metres. Defaults to 500.
+
+    Returns:
+        Up to 20 cleaned restaurant dicts from clean_restaurants.
+
+    Raises:
+        UpstreamTimeout: If the Places API request times out.
+        UpstreamUnavailable: If the Places API is unreachable.
+        UpstreamBadResponse: If the API returns a non-200 status code.
     """
     url = "https://places.googleapis.com/v1/places:searchNearby"
     headers = {

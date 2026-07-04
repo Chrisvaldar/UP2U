@@ -7,10 +7,19 @@ from app import errors
 
 def geocode_location(address: str) -> tuple[float, float]:
     """
-    Convert a text address to (latitude, longitude) via Geocoding API v4.
+    Convert a text address to latitude and longitude via Geocoding API v4.
 
-    v4 puts the address in the URL path and authenticates with X-Goog-Api-Key
-    (same header style as Places API). Coords live at results[0].location.
+    Args:
+        address: Free-text address to geocode.
+
+    Returns:
+        A (latitude, longitude) tuple from the first geocoding result.
+
+    Raises:
+        ValueError: If the address is empty or no results are returned.
+        UpstreamTimeout: If the geocoding request times out.
+        UpstreamUnavailable: If the geocoding service is unreachable.
+        UpstreamBadResponse: If the API returns a non-200 status code.
     """
     if not address or not address.strip():
         raise ValueError("Address is required")

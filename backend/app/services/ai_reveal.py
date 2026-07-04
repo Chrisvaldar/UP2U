@@ -12,6 +12,18 @@ from app.services import ranking
 
 
 def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) -> dict:
+    """
+    Run the full reveal pipeline from user answers to an AI-generated reveal.
+
+    Args:
+        users: Participant answer dicts with preferences and travel_distance.
+        latitude: Session location latitude.
+        longitude: Session location longitude.
+
+    Returns:
+        A reveal dict from generate_reveal with personality lines, agreements,
+        conflicts, primary restaurant, backups, and photo URLs.
+    """
     radius = ranking.get_search_radius(users)
     restaurants = places.get_nearby_restaurants(latitude, longitude, 2000)
     shortlist = ranking.rank_restaurants_for_group(restaurants, radius, users)
@@ -19,12 +31,31 @@ def run_reveal_pipeline(users: list[dict], latitude: float, longitude: float) ->
 
 
 def _gemini_is_rate_limited(exc: Exception) -> bool:
+    """
+    Detect whether a Gemini client error indicates rate limiting or overload.
+
+    Args:
+        exc: Exception raised by the Gemini client.
+
+    Returns:
+        True if exc is a ClientError or ServerError with code 429 or 503.
+    """
     if isinstance(exc, (ClientError, ServerError)):
         return exc.code in (429, 503)
     return False
 
 
 def call_gemini(system_prompt: str, user_prompt: str) -> str:
+    """
+    Generate reveal content using the Gemini API.
+
+    Args:
+        system_prompt: System instruction defining tone and JSON output rules.
+        user_prompt: User message with group preferences and restaurant data.
+
+    Returns:
+        Stripped text content from the Gemini model response.
+    """
     client = genai.Client(api_key=config.GEMINI_API_KEY)
     response = client.models.generate_content(
         model="gemini-2.5-flash",
@@ -35,6 +66,20 @@ def call_gemini(system_prompt: str, user_prompt: str) -> str:
 
 
 def call_groq(system_prompt: str, user_prompt: str) -> str:
+    """
+    Generate reveal content using the Groq API as a Gemini fallback.
+
+    Args:
+        system_prompt: System message defining tone and JSON output rules.
+        user_prompt: User message with group preferences and restaurant data.
+
+    Returns:
+        Stripped text content from the Groq chat completion.
+
+    Raises:
+        UpstreamUnavailable: On Groq rate limit (429) or overload (503).
+        UpstreamBadResponse: On other Groq API errors.
+    """
     try:
         client = Groq(api_key=config.GROQ_API_KEY)
         response = client.chat.completions.create(
@@ -56,6 +101,19 @@ def call_groq(system_prompt: str, user_prompt: str) -> str:
 
 
 def parse_reveal_response(raw: str) -> dict:
+    """
+    Parse raw AI output into a reveal dict, stripping markdown fences if present.
+
+    Args:
+        raw: Raw model output, optionally wrapped in ```json code fences.
+
+    Returns:
+        Parsed reveal dict with personality_lines, agreements, conflicts,
+        primary, and backups keys.
+
+    Raises:
+        UpstreamBadResponse: If the content is not valid JSON.
+    """
     try:
         if raw.startswith("```"):
             raw = raw.split("```")[1]
@@ -68,6 +126,21 @@ def parse_reveal_response(raw: str) -> dict:
 
 
 def generate_reveal(users: list[dict], restaurants: list[dict], strict_radius: int):
+    """
+    Build prompts, call Gemini (with Groq fallback), and enrich the reveal with photos.
+
+    Args:
+        users: Participant answer dicts formatted into the user prompt.
+        restaurants: Ranked restaurant shortlist; only the first 15 are sent to the model.
+        strict_radius: Maximum travel distance in metres included in the prompt.
+
+    Returns:
+        Parsed and photo-enriched reveal dict ready for the client.
+
+    Raises:
+        UpstreamUnavailable: When Gemini or Groq is rate limited or overloaded.
+        UpstreamBadResponse: When the model call fails or returns invalid JSON.
+    """
     restaurants = restaurants[:15]
 
     # Format user preferences as a readable block for the prompt
