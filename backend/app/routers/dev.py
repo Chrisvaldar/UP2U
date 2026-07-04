@@ -11,6 +11,19 @@ router = APIRouter()
 
 @router.get("/test-places")
 def test_places(radius: float = 500):
+    """
+    DEBUG-only smoke test for nearby restaurant search.
+
+    Args:
+        radius: Search radius in metres around central Melbourne. Defaults to 500.
+
+    Returns:
+        List of cleaned restaurant dicts from places.get_nearby_restaurants.
+
+    Raises:
+        HTTPException: 404 when DEBUG is disabled.
+        HTTPException: 502/503/504 when the Places API fails.
+    """
     if not config.DEBUG:
         raise HTTPException(status_code=404, detail="Dev endpoint: Not found")
     try:
@@ -21,7 +34,16 @@ def test_places(radius: float = 500):
 
 @router.get("/test-reveal")
 def test_reveal():
-    """Smoke test for the full reveal pipeline with hardcoded users."""
+    """
+    DEBUG-only smoke test for the full reveal pipeline with hardcoded users.
+
+    Returns:
+        Reveal dict from ai_reveal.run_reveal_pipeline.
+
+    Raises:
+        HTTPException: 404 when DEBUG is disabled.
+        HTTPException: 502/503/504 when the reveal pipeline fails.
+    """
     if not config.DEBUG:
         raise HTTPException(status_code=404, detail="Dev endpoint: Not found")
     users = [
@@ -50,6 +72,19 @@ def test_reveal():
 
 @router.get("/test-geocode")
 def test_geocode(address: str = "Federation Square, Melbourne"):
+    """
+    DEBUG-only smoke test for address geocoding.
+
+    Args:
+        address: Free-text address to geocode. Defaults to Federation Square, Melbourne.
+
+    Returns:
+        Dict with address, latitude, and longitude.
+
+    Raises:
+        HTTPException: 404 when DEBUG is disabled or geocoding returns no results.
+        HTTPException: 502/503/504 when the Geocoding API fails.
+    """
     if not config.DEBUG:
         raise HTTPException(status_code=404, detail="Dev endpoint: Not found")
     try:

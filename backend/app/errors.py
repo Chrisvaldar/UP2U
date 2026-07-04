@@ -20,6 +20,15 @@ class UpstreamBadResponse(UpstreamError):
 
 
 def upstream_to_http(exc: UpstreamError) -> HTTPException:
+    """
+    Map an upstream service exception to an HTTPException for API responses.
+
+    Args:
+        exc: UpstreamError subclass raised by external service calls.
+
+    Returns:
+        HTTPException with status 504, 503, or 502 and a user-facing detail message.
+    """
     if isinstance(exc, UpstreamTimeout):
         return HTTPException(
             status_code=504, detail="The request took too long. Try again."

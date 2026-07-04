@@ -11,6 +11,20 @@ router = APIRouter()
 
 @router.get("/photo/{place_id}/{index}")
 def get_photo(place_id: str, index: int) -> Response:
+    """
+    Proxy a Google Places photo as raw image bytes.
+
+    Args:
+        place_id: Google Places place ID.
+        index: Zero-based index into the place's photo list.
+
+    Returns:
+        FastAPI Response with the image content-type from Google.
+
+    Raises:
+        HTTPException: 404 when the photo index is missing.
+        HTTPException: 502/503/504 when upstream photo fetch fails.
+    """
     try:
         photo_names = photos.get_photo_names(place_id, strict=True)
 

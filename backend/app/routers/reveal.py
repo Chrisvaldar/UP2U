@@ -15,6 +15,23 @@ router = APIRouter()
 
 @router.post("/submit-answers/{code}")
 async def submit_answers(request: models.SubmitAnswersRequest, code: str):
+    """
+    Store a participant's survey answers and trigger reveal when all have submitted.
+
+    Broadcasts answer_submitted on each submission. When every participant has
+    answered, runs the reveal pipeline in a thread and broadcasts reveal_ready
+    or reveal_failed.
+
+    Args:
+        request: Participant name and survey answer payload.
+        code: Six-character session code.
+
+    Returns:
+        Updated session dict including answers and status.
+
+    Raises:
+        HTTPException: 404 if the session or participant is not found.
+    """
     data = redis_client.r.get(redis_client.session_key(code))
     if data is None:
         raise HTTPException(status_code=404, detail="Session not found")
