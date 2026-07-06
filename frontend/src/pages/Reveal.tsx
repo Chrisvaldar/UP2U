@@ -6,9 +6,11 @@ import RestaurantCard from "../components/RestaurantCard";
 import {
   getParticipantName,
   getReveal,
+  saveReveal,
   clearReveal,
   clearDraft,
   setFlashMessage,
+  type RevealData,
 } from "@/lib/session";
 import ErrorMessage from "../components/ErrorMessage";
 import { API_BASE, WS_BASE } from "@/lib/config";
@@ -25,7 +27,9 @@ import axios from "axios";
 export default function Reveal() {
   const { code } = useParams();
   const navigate = useNavigate();
-  const reveal = code ? getReveal(code) : undefined;
+  const [reveal, setReveal] = useState<RevealData | undefined>(() =>
+    code ? getReveal(code) : undefined,
+  );
   const [step, setStep] = useState(0);
   const name =
     useLocation().state?.name ?? getParticipantName(code ?? "") ?? "";
@@ -54,6 +58,19 @@ export default function Reveal() {
       try {
         const session = await axios.get(`${API_BASE}/session/${code}`);
         if (cancelled) return;
+
+        const sessionCode = code.trim().toUpperCase();
+        if (!getReveal(sessionCode)) {
+          if (session.data.status === "revealed" && session.data.reveal) {
+            saveReveal(sessionCode, session.data.reveal);
+            setReveal(session.data.reveal);
+          } else {
+            setFlashMessage("Page not found");
+            navigate("/");
+            return;
+          }
+        }
+
         setHost(session.data.host);
         ws = new WebSocket(`${WS_BASE}/ws/${code}/${name}`);
         ws.onmessage = (event) => {
@@ -81,13 +98,6 @@ export default function Reveal() {
       ws?.close();
     };
   }, [code, name, navigate]);
-
-  useEffect(() => {
-    if (!code || !getReveal(code)) {
-      setFlashMessage("Page not found");
-      navigate("/");
-    }
-  }, [code, navigate]);
 
   const restaurantsSlideIndex = reveal
     ? Object.keys(reveal.personality_lines).length + 2
