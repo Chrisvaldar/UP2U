@@ -11,6 +11,12 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 - Redis stores session state with a one-hour TTL. Successful reveals also store the full `reveal` payload in Redis (`status: "revealed"`).
 - WebSockets broadcast lobby, survey, and reveal events to every connected client in the session.
 
+## Code documentation
+
+- **Backend:** Google-style function docstrings (`Args`, `Returns`, `Raises`) in `backend/app/` and `backend/tests/`.
+- **Frontend:** TSDoc (`@param`, `@returns`, `@remarks`) on named functions in `frontend/src/`.
+- See `PROJECT_HANDOFF.md` §4.4 for full scope.
+
 ## Production
 
 | Service | URL |
