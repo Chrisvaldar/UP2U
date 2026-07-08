@@ -1,4 +1,4 @@
-type ButtonProps = {
+export type ButtonProps = {
   label: string;
   onClick: () => void | Promise<void>;
   disabled?: boolean;
