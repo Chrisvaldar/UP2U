@@ -141,7 +141,9 @@ cd ..\backend
 venv\Scripts\python.exe -m pytest
 ```
 
-**Frontend tests** (`npm run test` → Vitest + jsdom + React Testing Library): colocated `*.test.tsx` for `Button`, `ErrorMessage`, `RestaurantCard`, and `HomePage`. Setup in `frontend/vitest.setup.ts` stubs `matchMedia`, `IntersectionObserver`, and `ResizeObserver` for Embla in jsdom. Lobby, Survey, and Reveal pages are not yet covered.
+Expected: **41** frontend tests, **29** backend tests (all passing as of July 8, 2026).
+
+**Frontend tests** (`npm run test` → Vitest + jsdom + React Testing Library): **41 tests** across 7 files — colocated `*.test.tsx` for `Button`, `ErrorMessage`, `RestaurantCard`, `HomePage`, `Lobby`, `Survey`, and `Reveal`. WebSocket mocking via `frontend/src/test-utils/mockWebSocket.ts`. Setup in `frontend/vitest.setup.ts` stubs `matchMedia`, `IntersectionObserver`, and `ResizeObserver` for Embla in jsdom. `LocationAutocomplete.tsx`, `SortableItem.tsx`, and `Input.tsx` are not yet covered.
 
 **Backend tests** (`backend/tests/test_sessions.py`, 29 tests) use **fakeredis** via autouse fixture in `backend/tests/conftest.py`; slowapi rate limiting is disabled per test (`disable_rate_limiter`) — no real Redis required. Coverage includes session CRUD, join conflicts, TTL preservation, `start-session` upstream errors, reveal pipeline success (`revealed` + Redis `reveal`) / failure / retry, DEBUG-gated dev routes, photo proxy errors, and WebSocket broadcast. Config: `backend/pytest.ini` (`pythonpath = .`, `testpaths = tests`).
 
@@ -150,7 +152,7 @@ CI runs the same checks on every push/PR to `main` (see **CI** above).
 ## Known Limitations
 
 - WebSocket connections are in-memory and are not multi-instance safe (single Railway instance is fine for friends beta).
-- Frontend test coverage is partial — Lobby, Survey, and Reveal pages not yet tested.
+- Frontend test coverage is partial — `LocationAutocomplete.tsx`, `SortableItem.tsx`, and `Input.tsx` not yet tested.
 - Reveal carousel slide index resets on refresh.
 
 Backend logs session lifecycle, reveal success/failure (typed `UpstreamError` vs unexpected exceptions), Places/photo/geocode errors, and AI JSON parse failures via Python `logging`. See `PROJECT_HANDOFF.md` §7.12 for the full call map.
