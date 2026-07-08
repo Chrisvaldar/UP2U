@@ -7,7 +7,7 @@ UP2U is a real-time group dining decision app: create a session, collect group p
 ## Architecture
 
 - `frontend/`: React 19, Vite 8, TypeScript, Tailwind 4, React Router, Axios, Google Maps Places autocomplete, dnd-kit ranking UI, Embla reveal carousel (outer restaurant slides + inner photo carousel per card). Hosted on **Vercel** (`frontend/` root).
-- `backend/`: FastAPI, Redis session storage, WebSockets, Google Places, Gemini reveal generation, optional Groq fallback. Hosted on **Railway** (`backend/` root) with Railway **Redis**.
+- `backend/`: FastAPI, Redis session storage, WebSockets, slowapi rate limiting (Redis-backed), Google Places, Gemini reveal generation, optional Groq fallback. Hosted on **Railway** (`backend/` root) with Railway **Redis**.
 - Redis stores session state with a one-hour TTL. Successful reveals also store the full `reveal` payload in Redis (`status: "revealed"`).
 - WebSockets broadcast lobby, survey, and reveal events to every connected client in the session.
 
@@ -46,7 +46,7 @@ GitHub Actions workflow: `.github/workflows/UP2U.yaml`
 On push/PR to `main`, two jobs run in parallel:
 
 - **backend** — `pip install -r backend/requirements.txt`, then `cd backend && pytest` (fakeredis; no secrets)
-- **frontend** — `cd frontend && npm install && npm run build`
+- **frontend** — `cd frontend && npm install && npm run test && npm run build`
 
 ## Local Setup
 
@@ -95,7 +95,9 @@ VITE_API_BASE=http://127.0.0.1:8000
 
 ## Backend API
 
-**Session errors:** `HTTPException` with `{"detail": "<message>"}` — **404** (not found), **403** (host-only), **409** (state conflict). Frontend reads `err.response.data.detail` in axios `catch` blocks.
+**Session errors:** `HTTPException` with `{"detail": "<message>"}` — **404** (not found), **403** (host-only), **409** (state conflict), **429** (rate limit exceeded). Frontend reads `err.response.data.detail` in axios `catch` blocks.
+
+**Rate limits** (per client IP via slowapi): `POST /create-session` and `POST /join-session/{code}` — 10/min; `POST /start-session/{code}`, `POST /retry-session/{code}`, and `POST /submit-answers/{code}` — 5/min; `POST /end-session/{code}` — 10/min; `GET /photo/{place_id}/{index}` — 30/min.
 
 **Upstream errors:** Google Places, Geocoding, and AI failures map to **502** (bad upstream response), **503** (unavailable / rate-limited), **504** (timeout) via `upstream_to_http()`. Generic client messages; full detail is server-logged only.
 
@@ -126,26 +128,29 @@ VITE_API_BASE=http://127.0.0.1:8000
 - `/`: create or join a session with validation, loading state, and error handling.
 - `/lobby/:code`: shows participants, lets the host choose a Google Places location, and starts the session.
 - `/survey/:code`: collects hunger, vibe, ranked cuisines, travel distance, and dietary requirements. Steps 0–4 persist to sessionStorage (`saveDraft`/`getDraft`); restore on refresh until submit. Reload with `status: revealed` hydrates reveal from API and navigates to Reveal.
-- `/reveal/:code`: personality slides, agreements/conflicts, restaurant carousel with photo carousels per card; reveal read from `sessionStorage` (`getReveal`).
+- `/reveal/:code`: personality slides, agreements/conflicts, restaurant carousel with photo carousels per card; reveal seeded from `sessionStorage` (`getReveal`), with API fallback from `GET /session/{code}` when `status` is `"revealed"`.
 
 ## Verification
 
 ```powershell
 cd frontend
+npm.cmd run test
 npm.cmd run build
 
 cd ..\backend
 venv\Scripts\python.exe -m pytest
 ```
 
-Backend tests (`backend/tests/test_sessions.py`, 29 tests) use **fakeredis** via autouse fixture in `backend/tests/conftest.py` — no real Redis required. Coverage includes session CRUD, join conflicts, TTL preservation, `start-session` upstream errors, reveal pipeline success (`revealed` + Redis `reveal`) / failure / retry, DEBUG-gated dev routes, photo proxy errors, and WebSocket broadcast. Config: `backend/pytest.ini` (`pythonpath = .`, `testpaths = tests`).
+**Frontend tests** (`npm run test` → Vitest + jsdom + React Testing Library): colocated `*.test.tsx` for `Button`, `ErrorMessage`, `RestaurantCard`, and `HomePage`. Setup in `frontend/vitest.setup.ts` stubs `matchMedia`, `IntersectionObserver`, and `ResizeObserver` for Embla in jsdom. Lobby, Survey, and Reveal pages are not yet covered.
+
+**Backend tests** (`backend/tests/test_sessions.py`, 29 tests) use **fakeredis** via autouse fixture in `backend/tests/conftest.py`; slowapi rate limiting is disabled per test (`disable_rate_limiter`) — no real Redis required. Coverage includes session CRUD, join conflicts, TTL preservation, `start-session` upstream errors, reveal pipeline success (`revealed` + Redis `reveal`) / failure / retry, DEBUG-gated dev routes, photo proxy errors, and WebSocket broadcast. Config: `backend/pytest.ini` (`pythonpath = .`, `testpaths = tests`).
 
 CI runs the same checks on every push/PR to `main` (see **CI** above).
 
 ## Known Limitations
 
 - WebSocket connections are in-memory and are not multi-instance safe (single Railway instance is fine for friends beta).
-- Reveal page requires `getReveal(code)` in sessionStorage — direct `/reveal/:code` without prior save redirects home (Survey reload with `status: revealed` recovers from API).
+- Frontend test coverage is partial — Lobby, Survey, and Reveal pages not yet tested.
 - Reveal carousel slide index resets on refresh.
 
 Backend logs session lifecycle, reveal success/failure (typed `UpstreamError` vs unexpected exceptions), Places/photo/geocode errors, and AI JSON parse failures via Python `logging`. See `PROJECT_HANDOFF.md` §7.12 for the full call map.

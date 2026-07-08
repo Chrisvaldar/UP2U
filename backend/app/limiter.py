@@ -1,3 +1,5 @@
+"""Shared slowapi rate limiter backed by Redis."""
+
 import os
 from slowapi import Limiter
 from slowapi.util import get_remote_address
