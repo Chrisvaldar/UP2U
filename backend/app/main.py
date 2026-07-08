@@ -4,7 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import dev, photos, reveal, sessions
 from app import ws
 
-app = FastAPI(title="UP2U Learn")
+from app.limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
+app = FastAPI(title="UP2U")
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

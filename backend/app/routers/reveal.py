@@ -1,20 +1,22 @@
 import asyncio
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app import config
 from app import errors
 from app import models
 from app import redis_client
 from app import ws
+from app.limiter import limiter
 from app.services import ai_reveal
 
 router = APIRouter()
 
 
 @router.post("/submit-answers/{code}")
-async def submit_answers(request: models.SubmitAnswersRequest, code: str):
+@limiter.limit("5/minute")
+async def submit_answers(request: Request, code: str, body: models.SubmitAnswersRequest):
     """
     Store a participant's survey answers and trigger reveal when all have submitted.
 
@@ -23,7 +25,7 @@ async def submit_answers(request: models.SubmitAnswersRequest, code: str):
     or reveal_failed.
 
     Args:
-        request: Participant name and survey answer payload.
+        body: Participant name and survey answer payload.
         code: Six-character session code.
 
     Returns:
@@ -40,16 +42,16 @@ async def submit_answers(request: models.SubmitAnswersRequest, code: str):
     # Preserve the original expiry so normal activity does not extend a session.
     ttl_seconds = redis_client.r.ttl(redis_client.session_key(code))
 
-    if request.participant_name not in session["participants"]:
+    if body.participant_name not in session["participants"]:
         raise HTTPException(status_code=404, detail="Participant not found")
-    session["answers"][request.participant_name] = request.answers
+    session["answers"][body.participant_name] = body.answers
 
     await ws.manager.broadcast(
         code,
         {
             "type": "answer_submitted",
             "data": {
-                "name": request.participant_name,
+                "name": body.participant_name,
                 "submitted": list(session["answers"].keys()),
                 "total": len(session["participants"]),
             },

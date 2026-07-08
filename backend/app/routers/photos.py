@@ -1,16 +1,18 @@
 import requests
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 
 from app import config
 from app import errors
+from app.limiter import limiter
 from app.services import photos
 
 router = APIRouter()
 
 
 @router.get("/photo/{place_id}/{index}")
-def get_photo(place_id: str, index: int) -> Response:
+@limiter.limit("30/minute")
+def get_photo(request: Request, place_id: str, index: int) -> Response:
     """
     Proxy a Google Places photo as raw image bytes.
 

@@ -2,13 +2,14 @@ import json
 import random
 import string
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app import config
 from app import errors
 from app import models
 from app import redis_client
 from app import ws
+from app.limiter import limiter
 from app.services import places
 
 router = APIRouter()
@@ -21,7 +22,8 @@ def health():
 
 
 @router.post("/create-session")
-def create_session(request: models.CreateSessionRequest):
+@limiter.limit("10/minute")
+def create_session(request: Request, body: models.CreateSessionRequest):
     """
     Create a new session with a random six-character code.
 
@@ -29,7 +31,7 @@ def create_session(request: models.CreateSessionRequest):
     participant.
 
     Args:
-        request: CreateSessionRequest with host_name.
+        body: CreateSessionRequest with host_name.
 
     Returns:
         Dict containing the new session code.
@@ -39,15 +41,15 @@ def create_session(request: models.CreateSessionRequest):
     code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
     session = {
         "code": code,
-        "host": request.host_name,
+        "host": body.host_name,
         "status": "waiting",
         "location": None,
-        "participants": [request.host_name],
+        "participants": [body.host_name],
         "answers": {},
     }
 
     redis_client.r.set(redis_client.session_key(code), json.dumps(session), ex=ttl_seconds)
-    config.logger.info(f"Session {code} created by {request.host_name}")
+    config.logger.info(f"Session {code} created by {body.host_name}")
     return {"code": code}
 
 
@@ -72,14 +74,15 @@ def get_session(code: str):
 
 
 @router.post("/join-session/{code}")
-async def join_session(request: models.JoinSessionRequest, code: str):
+@limiter.limit("10/minute")
+async def join_session(request: Request, code: str, body: models.JoinSessionRequest):
     """
     Add a participant to a session and broadcast participant_joined.
 
     Preserves the existing Redis TTL so joins do not extend session lifetime.
 
     Args:
-        request: JoinSessionRequest with participant_name.
+        body: JoinSessionRequest with participant_name.
         code: Six-character session code.
 
     Returns:
@@ -108,7 +111,7 @@ async def join_session(request: models.JoinSessionRequest, code: str):
         raise HTTPException(
             status_code=409, detail="Uh oh! The group has decided already :("
         )
-    session["participants"].append(request.participant_name)
+    session["participants"].append(body.participant_name)
     redis_client.r.set(redis_client.session_key(code), json.dumps(session), ex=ttl_seconds)
 
     await ws.manager.broadcast(
@@ -116,24 +119,25 @@ async def join_session(request: models.JoinSessionRequest, code: str):
         {
             "type": "participant_joined",
             "data": {
-                "name": request.participant_name,
+                "name": body.participant_name,
                 "participants": session["participants"],
             },
         },
     )
-    config.logger.info(f"{request.participant_name} joined session {code}")
+    config.logger.info(f"{body.participant_name} joined session {code}")
     return session
 
 
 @router.post("/start-session/{code}")
-async def start_session(request: models.StartSessionRequest, code: str):
+@limiter.limit("5/minute")
+async def start_session(request: Request, code: str, body: models.StartSessionRequest):
     """
     Host-only endpoint to set location, fetch cuisines, and activate the session.
 
     Broadcasts session_started with lat, lng, participants, and cuisine options.
 
     Args:
-        request: StartSessionRequest with host_name, lat, and lng.
+        body: StartSessionRequest with host_name, lat, and lng.
         code: Six-character session code.
 
     Returns:
@@ -150,10 +154,10 @@ async def start_session(request: models.StartSessionRequest, code: str):
     session = json.loads(data)
     ttl_seconds = redis_client.r.ttl(redis_client.session_key(code))
 
-    if request.host_name == session["host"]:
+    if body.host_name == session["host"]:
         session["status"] = "active"
-        session["lat"] = request.lat
-        session["lng"] = request.lng
+        session["lat"] = body.lat
+        session["lng"] = body.lng
         try:
             cuisines = places.location_to_cuisines(session["lat"], session["lng"])
         except errors.UpstreamError as e:
@@ -167,16 +171,16 @@ async def start_session(request: models.StartSessionRequest, code: str):
             {
                 "type": "session_started",
                 "data": {
-                    "host": request.host_name,
-                    "lat": request.lat,
-                    "lng": request.lng,
+                    "host": body.host_name,
+                    "lat": body.lat,
+                    "lng": body.lng,
                     "participants": session["participants"],
                     "cuisines": cuisines,
                 },
             },
         )
         config.logger.info(
-            f"Session {code} started by {request.host_name} at ({request.lat}, {request.lng}) → cuisines: {cuisines}"
+            f"Session {code} started by {body.host_name} at ({body.lat}, {body.lng}) → cuisines: {cuisines}"
         )
         return session
 
@@ -184,7 +188,8 @@ async def start_session(request: models.StartSessionRequest, code: str):
 
 
 @router.post("/retry-session/{code}")
-async def retry_session(code: str, request: models.RetrySessionRequest):
+@limiter.limit("5/minute")
+async def retry_session(request: Request, code: str, body: models.RetrySessionRequest):
     """
     Host-only endpoint to reset a reveal_failed session back to active.
 
@@ -192,7 +197,7 @@ async def retry_session(code: str, request: models.RetrySessionRequest):
 
     Args:
         code: Six-character session code.
-        request: RetrySessionRequest with host_name.
+        body: RetrySessionRequest with host_name.
 
     Returns:
         Updated session dict with status active and empty answers.
@@ -208,7 +213,7 @@ async def retry_session(code: str, request: models.RetrySessionRequest):
 
     session = json.loads(data)
     ttl_seconds = redis_client.r.ttl(redis_client.session_key(code))
-    if request.host_name == session["host"]:
+    if body.host_name == session["host"]:
         if session["status"] != "reveal_failed":
             raise HTTPException(
                 status_code=409, detail="Retry is only available if pipeline fails"
@@ -225,7 +230,8 @@ async def retry_session(code: str, request: models.RetrySessionRequest):
 
 
 @router.post("/end-session/{code}")
-async def end_session(code: str, request: models.EndSessionRequest):
+@limiter.limit("10/minute")
+async def end_session(request: Request, code: str, body: models.EndSessionRequest):
     """
     Host-only endpoint to end a session and delete it from Redis.
 
@@ -233,7 +239,7 @@ async def end_session(code: str, request: models.EndSessionRequest):
 
     Args:
         code: Six-character session code.
-        request: EndSessionRequest with host_name.
+        body: EndSessionRequest with host_name.
 
     Returns:
         Final session dict before deletion.
@@ -247,7 +253,7 @@ async def end_session(code: str, request: models.EndSessionRequest):
         raise HTTPException(status_code=404, detail="Session not found")
 
     session = json.loads(data)
-    if request.host_name == session["host"]:
+    if body.host_name == session["host"]:
         await ws.manager.broadcast(
             code, {"type": "session_ended", "data": {"message": "end of session"}}
         )
