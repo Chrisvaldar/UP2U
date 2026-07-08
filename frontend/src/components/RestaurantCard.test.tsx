@@ -13,4 +13,20 @@ describe("RestaurantCard", () => {
     render(<RestaurantCard restaurant={mockRestaurant} />);
     expect(screen.getByText("Chin Chin")).toBeInTheDocument();
   });
+
+  it("maps link working", () =>{
+    render(<RestaurantCard restaurant={mockRestaurant} />);
+    expect(screen.getByRole("link", { name: "Open in Maps" })).toHaveAttribute("href", mockRestaurant.maps_link)
+  })
+
+  it("does not show Best Match badge when there are no photos", () => {
+    render(<RestaurantCard restaurant={mockRestaurant} isPrimary />);
+    expect(screen.queryByText("Best Match!")).not.toBeInTheDocument();
+  })
+
+  it("shows Best Match badge when there is a photo", () => {
+    const newMockRestaurant: Restaurant = {...mockRestaurant, photo_urls: ["/photo/test/0"]}
+    render(<RestaurantCard restaurant={newMockRestaurant} isPrimary/>);
+    expect(screen.getByText("Best Match!")).toBeInTheDocument();
+  })
 });
