@@ -6,6 +6,7 @@ import { userEvent } from "@testing-library/user-event";
 import { MockWebSocket } from "../test-utils/mockWebSocket";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { saveParticipantName } from "@/lib/session";
+import { act } from "@testing-library/react";
 
 const user = userEvent.setup();
 
@@ -99,12 +100,14 @@ describe("Lobby", () => {
     });
 
     const ws = MockWebSocket.instances[0];
-    ws.onmessage!({
-      data: JSON.stringify({
-        type: "participant_joined",
-        data: { participants: ["Chris", "Sarah"] },
-      }),
-    } as MessageEvent);
+    act(() => {
+      ws.onmessage!({
+        data: JSON.stringify({
+          type: "participant_joined",
+          data: { participants: ["Chris", "Sarah"] },
+        }),
+      } as MessageEvent);
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Sarah")).toBeInTheDocument();
@@ -183,7 +186,9 @@ describe("Lobby", () => {
       expect(screen.getByText("Chris")).toBeInTheDocument();
     });
     const ws = MockWebSocket.instances[0];
-    ws.onerror!({} as Event);
+    act(() => {
+      ws.onerror!({} as Event);
+    });
 
     await waitFor(() => {
       expect(
