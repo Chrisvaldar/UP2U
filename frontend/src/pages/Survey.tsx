@@ -450,7 +450,7 @@ export default function Survey() {
           />
         </div>
       )}
-      {step !== 4 && <ErrorMessage message={error} className="mt-6" />}
+      {step !== 4 && step !== 7 && <ErrorMessage message={error} className="mt-6" />}
       {step === 5 && (
         <div className="flex flex-col items-center gap-6">
           <h2 className="text-3xl font-black text-green-800 mb-4">
