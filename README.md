@@ -236,48 +236,55 @@ Project Link: [https://github.com/Chrisvaldar/UP2U](https://github.com/Chrisvald
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
 
+Docs and third-party stuff used on this project.
+
 ### APIs / services
 
-* Google Maps Platform
-* Google Places API (New)
-* Google Geocoding API
-* Google Gemini
-* Groq
-* Redis
-* Vercel
-* Railway
-* Google Fonts (Quicksand)
-* GitHub Actions
+* [Google Maps Platform](https://developers.google.com/maps)
+* [Google Places API (New)](https://developers.google.com/maps/documentation/places/web-service)
+* [Google Geocoding API](https://developers.google.com/maps/documentation/geocoding)
+* [Google Gemini](https://ai.google.dev/gemini-api/docs)
+* [Groq](https://console.groq.com/docs)
+* [Redis](https://redis.io/docs/)
+* [Vercel](https://vercel.com/docs)
+* [Railway](https://docs.railway.com/)
+* [Google Fonts (Quicksand)](https://fonts.google.com/specimen/Quicksand)
+* [GitHub Actions](https://docs.github.com/en/actions)
 
 ### Frontend
 
-* React / React DOM
-* Vite
-* TypeScript
-* React Router
-* Axios
-* Tailwind CSS
-* shadcn/ui
-* Radix UI
-* Lucide
-* Embla Carousel
-* dnd-kit
-* @vis.gl/react-google-maps
-* Geist (Fontsource)
-* Vitest + Testing Library + jsdom
-* ESLint
+* [React / React DOM](https://react.dev/)
+* [Vite](https://vite.dev/)
+* [TypeScript](https://www.typescriptlang.org/docs/)
+* [React Router](https://reactrouter.com/)
+* [Axios](https://axios-http.com/)
+* [Tailwind CSS](https://tailwindcss.com/docs)
+* [shadcn/ui](https://ui.shadcn.com/)
+* [Radix UI](https://www.radix-ui.com/)
+* [Lucide](https://lucide.dev/)
+* [Embla Carousel](https://www.embla-carousel.com/)
+* [dnd-kit](https://dndkit.com/)
+* [@vis.gl/react-google-maps](https://visgl.github.io/react-google-maps/)
+* [Geist (Fontsource)](https://fontsource.org/fonts/geist)
+* [Vitest](https://vitest.dev/)
+* [Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
+* [jsdom](https://github.com/jsdom/jsdom)
+* [ESLint](https://eslint.org/)
 
 ### Backend
 
-* FastAPI
-* Uvicorn
-* redis (Python client)
-* python-dotenv
-* requests / httpx
-* google-genai
-* groq
-* slowapi
-* pytest / pytest-asyncio / fakeredis
+* [FastAPI](https://fastapi.tiangolo.com/)
+* [Uvicorn](https://uvicorn.dev/)
+* [redis (Python client)](https://redis.readthedocs.io/)
+* [python-dotenv](https://github.com/theskumar/python-dotenv)
+* [requests](https://requests.readthedocs.io/)
+* [httpx](https://www.python-httpx.org/)
+* [google-genai](https://googleapis.github.io/python-genai/)
+* [groq](https://github.com/groq/groq-python)
+* [slowapi](https://slowapi.readthedocs.io/en/latest/)
+* [pytest](https://docs.pytest.org/)
+* [pytest-asyncio](https://pytest-asyncio.readthedocs.io/)
+* [fakeredis](https://fakeredis.readthedocs.io/)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
