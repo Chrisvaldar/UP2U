@@ -88,7 +88,7 @@ describe("Reveal", () => {
     });
   });
 
-  it("hydrates from API when sessionStorage is empty and status is revealed", async () => {
+  it("loads from API when sessionStorage is empty and status is revealed", async () => {
     vi.mocked(axios.get).mockResolvedValue({
       data: { host: "Chris", status: "revealed", reveal: sampleReveal },
     });
