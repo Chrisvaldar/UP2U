@@ -1,160 +1,317 @@
-# UP2U
+<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+<a id="readme-top"></a>
 
-UP2U is a real-time group dining decision app: create a session, collect group preferences, and reveal a restaurant pick with AI-generated personality lines.
+
+
+<!-- PROJECT SHIELDS -->
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![Build][build-shield]][build-url]
+[![LinkedIn][linkedin-shield]][linkedin-url]
+
+
+
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <h3 align="center">UP2U</h3>
+
+  <p align="center">
+    Friends stuck deciding where to eat? Create a session, everyone answers a quick survey, AI picks a spot and roasts the group a bit.
+    <br />
+    <a href="https://up2u-app.vercel.app/"><strong>Live Demo »</strong></a>
+    <br />
+    <br />
+    <a href="https://up2u-app.vercel.app/">View Demo</a>
+    &middot;
+    <a href="https://github.com/Chrisvaldar/UP2U/issues/new?labels=bug">Report Bug</a>
+    &middot;
+    <a href="https://github.com/Chrisvaldar/UP2U/issues/new?labels=enhancement">Request Feature</a>
+  </p>
+</div>
+
+
+
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgments">Acknowledgments</a></li>
+  </ol>
+</details>
+
+
+
+<!-- ABOUT THE PROJECT -->
+## About The Project
+
+UP2U is a real-time group dining picker. Host makes a room, friends join with a code, everyone fills preferences, then you get a reveal with personality lines plus a restaurant (and backups).
+
+How a session goes:
+
+* **Home** — create or join with a 6-char code
+* **Lobby** — wait for people, host sets location, starts
+* **Survey** — hunger, vibe, cuisine ranking, distance, diet
+* **Reveal** — AI group take + restaurant carousel
+
+Group food decisions suck. This turns "idk where do you wanna go" into one shared pick.
 
 **Live app:** [https://up2u-app.vercel.app/](https://up2u-app.vercel.app/)
 
-## Architecture
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- `frontend/`: React 19, Vite 8, TypeScript, Tailwind 4, React Router, Axios, Google Maps Places autocomplete, dnd-kit ranking UI, Embla reveal carousel (outer restaurant slides + inner photo carousel per card). Hosted on **Vercel** (`frontend/` root).
-- `backend/`: FastAPI, Redis session storage, WebSockets, slowapi rate limiting (Redis-backed), Google Places, Gemini reveal generation, optional Groq fallback. Hosted on **Railway** (`backend/` root) with Railway **Redis**.
-- Redis stores session state with a one-hour TTL. Successful reveals also store the full `reveal` payload in Redis (`status: "revealed"`).
-- WebSockets broadcast lobby, survey, and reveal events to every connected client in the session.
 
-## Code documentation
 
-- **Backend:** Google-style function docstrings (`Args`, `Returns`, `Raises`) in `backend/app/` and `backend/tests/`.
-- **Frontend:** TSDoc (`@param`, `@returns`, `@remarks`) on named functions in `frontend/src/`.
-- See `PROJECT_HANDOFF.md` §4.4 for full scope.
+### Built With
 
-## Production
+* [![React][React.js]][React-url]
+* [![Vite][Vite.js]][Vite-url]
+* [![TypeScript][TypeScript]][TypeScript-url]
+* [![Tailwind CSS][TailwindCSS]][Tailwind-url]
+* [![FastAPI][FastAPI]][FastAPI-url]
+* [![Redis][Redis]][Redis-url]
+* [![Google Maps][GoogleMaps]][GoogleMaps-url]
+* [![Gemini][Gemini]][Gemini-url]
 
-| Service | URL |
-|---------|-----|
-| Frontend | [https://up2u-app.vercel.app/](https://up2u-app.vercel.app/) |
-| Backend | `https://up2u-production.up.railway.app` |
+Reveal generation uses Gemini by default, with an optional Groq fallback if Gemini is rate-limited or down.
 
-**Vercel env vars:** `VITE_API_BASE` (Railway URL, **no trailing slash**), `VITE_GOOGLE_MAPS_API_KEY`
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-**Railway env vars:** `REDIS_URL` (reference from Redis service), `GOOGLE_PLACES_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY` (optional). Do not set `DEBUG` in production.
 
-**CORS:** Backend allows `https://up2u-app.vercel.app` and local Vite dev origins only.
 
-**Google Maps API keys (two keys recommended):**
+<!-- GETTING STARTED -->
+## Getting Started
 
-| Key | File | Restrictions |
-|-----|------|--------------|
-| Browser | `frontend/.env` → `VITE_GOOGLE_MAPS_API_KEY` | Websites: Vercel + `http://localhost:5173/*` |
-| Server | `backend/.env` → `GOOGLE_PLACES_API_KEY` | API restrictions applied (Places API New + Photo Media); no website restriction — **restart uvicorn** after changing |
+Spin up a local copy with Redis, the FastAPI backend, and the Vite frontend.
 
-If `/test-places` returns 404, set `DEBUG=true`. A bad server key returns **502** (not silent `[]`). Legitimate empty search returns `[]` with **200**.
+### Prerequisites
 
-## CI
+* Node.js (CI uses 22)
+* Python 3.13
+* Redis (Docker one-liner below is fine)
+* API keys: Google Maps (browser), Google Places (server), Gemini; Groq optional
 
-GitHub Actions workflow: `.github/workflows/UP2U.yaml`
+**Google Places needs two keys, not one.** Mixing them up gets a 403 from Google that the backend surfaces as a 502.
 
-On push/PR to `main`, two jobs run in parallel:
+| Key | Env var | Restrictions |
+|-----|---------|--------------|
+| Browser | `VITE_GOOGLE_MAPS_API_KEY` | Website referrers (Vercel + `http://localhost:5173/*`) |
+| Server | `GOOGLE_PLACES_API_KEY` | No referrer restriction; restrict by API (Places API New + Photo Media) |
 
-- **backend** — `pip install -r backend/requirements.txt`, then `cd backend && pytest` (fakeredis; no secrets)
-- **frontend** — `cd frontend && npm install && npm run test && npm run build`
+### Installation
 
-## Local Setup
+1. Clone the repo
+   ```sh
+   git clone https://github.com/Chrisvaldar/UP2U.git
+   cd UP2U
+   ```
+2. Start Redis
+   ```powershell
+   docker run -d -p 6379:6379 redis
+   ```
+3. Backend
+   ```powershell
+   cd backend
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   copy .env.example .env
+   ```
+   Fill in `backend/.env`:
+   ```text
+   REDIS_URL=redis://localhost:6379
+   GOOGLE_PLACES_API_KEY=
+   GEMINI_API_KEY=
+   GROQ_API_KEY=
+   DEBUG=true
+   ```
+   Then run:
+   ```powershell
+   uvicorn app.main:app --reload
+   ```
+4. Frontend (new terminal)
+   ```powershell
+   cd frontend
+   npm install
+   copy .env.example .env
+   ```
+   Fill in `frontend/.env`:
+   ```text
+   VITE_GOOGLE_MAPS_API_KEY=
+   VITE_API_BASE=http://127.0.0.1:8000
+   ```
+   (`VITE_API_BASE` is optional locally; it defaults to `http://127.0.0.1:8000`.)
+   Then run:
+   ```powershell
+   npm.cmd run dev
+   ```
+5. Open the Vite URL (usually `http://localhost:5173`) and create a session.
 
-Backend:
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-```powershell
-cd backend
-venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
 
-Frontend:
 
-```powershell
-cd frontend
-npm install
-copy .env.example .env
-npm.cmd run dev
-```
+<!-- USAGE EXAMPLES -->
+## Usage
 
-Redis:
+1. Open the app, create a session, share the code
+2. Friends join from Home with the same code
+3. Host picks a location in Lobby, hits start
+4. Everyone does the survey
+5. When the last person submits, the reveal drops for everyone over WebSocket
+6. Host can retry if reveal fails, or end the session when you are done
 
-```powershell
-docker run -d -p 6379:6379 redis
-```
+API reference (auto-generated by FastAPI): [https://up2u-production.up.railway.app/docs](https://up2u-production.up.railway.app/docs)
 
-Backend env vars:
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-```text
-REDIS_URL=redis://localhost:6379
-GOOGLE_PLACES_API_KEY=
-GEMINI_API_KEY=
-GROQ_API_KEY=
-DEBUG=true
-```
 
-Frontend env vars:
 
-```text
-VITE_GOOGLE_MAPS_API_KEY=
-VITE_API_BASE=http://127.0.0.1:8000
-```
+<!-- ROADMAP -->
+## Roadmap
 
-(`VITE_API_BASE` optional locally — defaults to `http://127.0.0.1:8000`. Trailing slashes are stripped in `frontend/src/lib/config.ts`.)
+- [x] Create/join sessions with live lobby
+- [x] Preference survey + group ranking
+- [x] AI reveal with restaurant picks + photos
+- [x] Deploy (Vercel frontend, Railway backend/Redis)
+- [x] Test suite in place (41 frontend, 29 backend)
+- [ ] Multi-instance WebSocket support (right now in-memory, one backend instance)
+- [ ] Stronger frontend test coverage on edge cases (beyond the current 41)
+- [ ] Reveal carousel index surviving refresh
+- [ ] Auth, share links, and other polish later
 
-## Backend API
+See the [open issues](https://github.com/Chrisvaldar/UP2U/issues) for a full list of proposed features (and known issues).
 
-**Session errors:** `HTTPException` with `{"detail": "<message>"}` — **404** (not found), **403** (host-only), **409** (state conflict), **429** (rate limit exceeded). Frontend reads `err.response.data.detail` in axios `catch` blocks.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-**Rate limits** (per client IP via slowapi): `POST /create-session` and `POST /join-session/{code}` — 10/min; `POST /start-session/{code}`, `POST /retry-session/{code}`, and `POST /submit-answers/{code}` — 5/min; `POST /end-session/{code}` — 10/min; `GET /photo/{place_id}/{index}` — 30/min.
 
-**Upstream errors:** Google Places, Geocoding, and AI failures map to **502** (bad upstream response), **503** (unavailable / rate-limited), **504** (timeout) via `upstream_to_http()`. Generic client messages; full detail is server-logged only.
 
-- `GET /`: health check.
-- `POST /create-session`: creates a session and returns `{ "code": "ABC123" }`.
-- `GET /session/{code}`: returns session JSON; **404** if missing. Includes `reveal` when `status` is `"revealed"`.
-- `POST /join-session/{code}`: adds a participant and broadcasts `participant_joined`; **404** if missing, **409** if session is `revealing`, `revealed`, or `reveal_failed`.
-- `POST /start-session/{code}`: host-only; fetches nearby cuisines via Places; broadcasts `session_started`; **403** if not host; **502/503/504** if Places fails (empty `cuisines` on successful zero-result search is still **200**).
-- `POST /submit-answers/{code}`: stores answers, broadcasts `answer_submitted`, runs reveal pipeline when everyone has submitted; **404** if session or participant not found. Pipeline success → **HTTP 200** + `status: revealed` + `reveal` in session JSON + WebSocket `reveal_ready`. Pipeline failure → **HTTP 200** + `status: reveal_failed` + WebSocket `reveal_failed` (not 502).
-- `POST /retry-session/{code}`: host-only retry after `reveal_failed`; clears answers, broadcasts `retrying`; **403** / **409** as applicable.
-- `POST /end-session/{code}`: host-only; broadcasts `session_ended`, deletes Redis session; **403** if not host.
-- `GET /photo/{place_id}/{index}`: server-side photo proxy; **404** if no photo at index; **502/503/504** on upstream fetch failure.
-- `GET /test-places`, `GET /test-reveal`, `GET /test-geocode`: dev smoke tests (`DEBUG=true`; **404** when disabled; propagate **502/503/504** on upstream failure).
-- `WS /ws/{session_code}/{participant_name}`: live session event stream.
+<!-- CONTRIBUTING -->
+## Contributing
 
-## WebSocket Events
+This is a personal project, but issues and PRs are welcome if you want to poke at it.
 
-- `participant_joined`: `{ name, participants }`
-- `session_started`: `{ host, lat, lng, participants, cuisines }`
-- `answer_submitted`: `{ name, submitted, total }`
-- `reveal_ready`: full reveal payload with personality lines, agreements, conflicts, primary restaurant, backups, and optional `photo_urls` per restaurant (served via `/photo/...` proxy).
-- `reveal_failed`: `{ error }`
-- `retrying`: `{ message }`
-- `session_ended`: `{ message }`
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## Frontend Pages
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- `/`: create or join a session with validation, loading state, and error handling.
-- `/lobby/:code`: shows participants, lets the host choose a Google Places location, and starts the session.
-- `/survey/:code`: collects hunger, vibe, ranked cuisines, travel distance, and dietary requirements. Steps 0–4 persist to sessionStorage (`saveDraft`/`getDraft`); restore on refresh until submit. Reload with `status: revealed` hydrates reveal from API and navigates to Reveal.
-- `/reveal/:code`: personality slides, agreements/conflicts, restaurant carousel with photo carousels per card; reveal seeded from `sessionStorage` (`getReveal`), with API fallback from `GET /session/{code}` when `status` is `"revealed"`.
 
-## Verification
 
-```powershell
-cd frontend
-npm.cmd run test
-npm.cmd run build
+<!-- CONTACT -->
+## Contact
 
-cd ..\backend
-venv\Scripts\python.exe -m pytest
-```
+Christopher Valensio Darsono - [@Chrisvaldar](https://github.com/Chrisvaldar) - christophervalensio1@gmail.com
 
-Expected: **41** frontend tests, **29** backend tests (all passing as of July 8, 2026).
+LinkedIn: [https://linkedin.com/in/your_username](https://linkedin.com/in/your_username)
 
-**Frontend tests** (`npm run test` → Vitest + jsdom + React Testing Library): **41 tests** across 7 files — colocated `*.test.tsx` for `Button`, `ErrorMessage`, `RestaurantCard`, `HomePage`, `Lobby`, `Survey`, and `Reveal`. WebSocket mocking via `frontend/src/test-utils/mockWebSocket.ts`. Setup in `frontend/vitest.setup.ts` stubs `matchMedia`, `IntersectionObserver`, and `ResizeObserver` for Embla in jsdom. `LocationAutocomplete.tsx`, `SortableItem.tsx`, and `Input.tsx` are not yet covered.
+Project Link: [https://github.com/Chrisvaldar/UP2U](https://github.com/Chrisvaldar/UP2U)
 
-**Backend tests** (`backend/tests/test_sessions.py`, 29 tests) use **fakeredis** via autouse fixture in `backend/tests/conftest.py`; slowapi rate limiting is disabled per test (`disable_rate_limiter`) — no real Redis required. Coverage includes session CRUD, join conflicts, TTL preservation, `start-session` upstream errors, reveal pipeline success (`revealed` + Redis `reveal`) / failure / retry, DEBUG-gated dev routes, photo proxy errors, and WebSocket broadcast. Config: `backend/pytest.ini` (`pythonpath = .`, `testpaths = tests`).
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-CI runs the same checks on every push/PR to `main` (see **CI** above).
 
-## Known Limitations
 
-- WebSocket connections are in-memory and are not multi-instance safe (single Railway instance is fine for friends beta).
-- Frontend test coverage is partial — `LocationAutocomplete.tsx`, `SortableItem.tsx`, and `Input.tsx` not yet tested.
-- Reveal carousel slide index resets on refresh.
+<!-- ACKNOWLEDGMENTS -->
+## Acknowledgments
 
-Backend logs session lifecycle, reveal success/failure (typed `UpstreamError` vs unexpected exceptions), Places/photo/geocode errors, and AI JSON parse failures via Python `logging`. See `PROJECT_HANDOFF.md` §7.12 for the full call map.
+Docs and third-party stuff used on this project. Grab the links and paste them in when you have them.
 
-See `PROJECT_HANDOFF.md` for full architecture and deployment notes.
+### APIs / services
+
+* Google Maps Platform
+* Google Places API (New)
+* Google Geocoding API
+* Google Gemini
+* Groq
+* Redis
+* Vercel
+* Railway
+* Google Fonts (Quicksand)
+* GitHub Actions
+
+### Frontend
+
+* React / React DOM
+* Vite
+* TypeScript
+* React Router
+* Axios
+* Tailwind CSS
+* shadcn/ui
+* Radix UI
+* Lucide
+* Embla Carousel
+* dnd-kit
+* @vis.gl/react-google-maps
+* Geist (Fontsource)
+* Vitest + Testing Library + jsdom
+* ESLint
+
+### Backend
+
+* FastAPI
+* Uvicorn
+* redis (Python client)
+* python-dotenv
+* requests / httpx
+* google-genai
+* groq
+* slowapi
+* pytest / pytest-asyncio / fakeredis
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+<!-- MARKDOWN LINKS & IMAGES -->
+<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+[contributors-shield]: https://img.shields.io/github/contributors/Chrisvaldar/UP2U.svg?style=for-the-badge
+[contributors-url]: https://github.com/Chrisvaldar/UP2U/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/Chrisvaldar/UP2U.svg?style=for-the-badge
+[forks-url]: https://github.com/Chrisvaldar/UP2U/network/members
+[stars-shield]: https://img.shields.io/github/stars/Chrisvaldar/UP2U.svg?style=for-the-badge
+[stars-url]: https://github.com/Chrisvaldar/UP2U/stargazers
+[issues-shield]: https://img.shields.io/github/issues/Chrisvaldar/UP2U.svg?style=for-the-badge
+[issues-url]: https://github.com/Chrisvaldar/UP2U/issues
+[build-shield]: https://github.com/Chrisvaldar/UP2U/actions/workflows/UP2U.yaml/badge.svg
+[build-url]: https://github.com/Chrisvaldar/UP2U/actions/workflows/UP2U.yaml
+[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
+[linkedin-url]: https://linkedin.com/in/your_username
+[React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
+[React-url]: https://react.dev/
+[Vite.js]: https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white
+[Vite-url]: https://vite.dev/
+[TypeScript]: https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white
+[TypeScript-url]: https://www.typescriptlang.org/
+[TailwindCSS]: https://img.shields.io/badge/Tailwind_CSS-38B2F6?style=for-the-badge&logo=tailwindcss&logoColor=white
+[Tailwind-url]: https://tailwindcss.com/
+[FastAPI]: https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white
+[FastAPI-url]: https://fastapi.tiangolo.com/
+[Redis]: https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white
+[Redis-url]: https://redis.io/
+[GoogleMaps]: https://img.shields.io/badge/Google_Maps-4285F4?style=for-the-badge&logo=googlemaps&logoColor=white
+[GoogleMaps-url]: https://developers.google.com/maps
+[Gemini]: https://img.shields.io/badge/Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white
+[Gemini-url]: https://ai.google.dev/
