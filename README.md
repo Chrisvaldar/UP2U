@@ -225,7 +225,7 @@ This is a personal project, but issues and PRs are welcome if you want to poke a
 
 Christopher Valensio Darsono - [@Chrisvaldar](https://github.com/Chrisvaldar) - christophervalensio1@gmail.com
 
-LinkedIn: [https://linkedin.com/in/your_username](https://linkedin.com/in/your_username)
+In: [https://www.linkedin.com/in/christopher-darsono-bb8959355/](https://www.linkedin.com/in/christopher-darsono-bb8959355/)
 
 Project Link: [https://github.com/Chrisvaldar/UP2U](https://github.com/Chrisvaldar/UP2U)
 
@@ -235,8 +235,6 @@ Project Link: [https://github.com/Chrisvaldar/UP2U](https://github.com/Chrisvald
 
 <!-- ACKNOWLEDGMENTS -->
 ## Acknowledgments
-
-Docs and third-party stuff used on this project. Grab the links and paste them in when you have them.
 
 ### APIs / services
 
